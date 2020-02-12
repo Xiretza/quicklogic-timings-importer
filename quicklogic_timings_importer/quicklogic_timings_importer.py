@@ -4,13 +4,13 @@ from pathlib import Path
 import argparse
 import re
 import json
-from pprint import pprint as pp
 from termcolor import colored
 from datetime import date
 from collections import defaultdict
 
 LOGLEVELS = ["INFO", "WARNING", "ERROR", "ALL"]
 SUPPRESSBELOW = "ERROR"
+
 
 def log(ltype, message):
     """Prints log messages.
@@ -22,11 +22,11 @@ def log(ltype, message):
     message: str
         Log message
     """
-    if not ltype in LOGLEVELS[:-1]:
+    if ltype not in LOGLEVELS[:-1]:
         return
-    dat = {"INFO": (0,"green"),
-           "WARNING": (1,"yellow"),
-           "ERROR": (2,"red"),
+    dat = {"INFO": (0, "green"),
+           "WARNING": (1, "yellow"),
+           "ERROR": (2, "red"),
            "ALL": (3, "black")}
     if dat[ltype][0] >= dat[SUPPRESSBELOW][0]:
         print(colored("{}: {}".format(ltype, message), dat[ltype][1]))
@@ -112,7 +112,9 @@ def load_timing_info_from_lib(inputfilename: str) -> (str, dict):
             if structmatch.group("name"):
                 libfile[i] = structdecl.sub(r'\g<indent>\g<name> :', line)
             else:
-                libfile[i] = structdecl.sub(r'\g<indent>\g<type>\g<name> :', line)
+                libfile[i] = structdecl.sub(
+                        r'\g<indent>\g<type>\g<name> :',
+                        line)
 
     # wrap all text in quotes
     for i, line in enumerate(libfile):
@@ -134,12 +136,12 @@ def load_timing_info_from_lib(inputfilename: str) -> (str, dict):
     timingdict = json.loads('\n'.join(libfile),
                             object_pairs_hook=join_duplicate_keys)
 
-
     # sanity checking and duplicate entry handling
     for key, value in timingdict.items():
         if type(value) is list:
             finalentry = dict()
-            for k in sorted(list(set([key for elements in value for key in elements]))):
+            for k in sorted(list(
+                    set([key for elements in value for key in elements]))):
                 first = True
                 val = None
                 for duplicate in value:
@@ -148,15 +150,14 @@ def load_timing_info_from_lib(inputfilename: str) -> (str, dict):
                             val = duplicate[k]
                             first = False
                         assert duplicate[k] == val, \
-                                "ERROR: entries for {} have different" \
-                                "values for parameter {}: {} != {}".format(
-                                        key,
-                                        k,
-                                        val,
-                                        duplicate[k])
+                            "ERROR: entries for {} have different" \
+                            "values for parameter {}: {} != {}".format(
+                                    key,
+                                    k,
+                                    val,
+                                    duplicate[k])
                 finalentry[k] = val
             timingdict[key] = finalentry
-
 
     return header, timingdict
 
@@ -210,7 +211,10 @@ def getparsekey(entrydata, direction):
     tuple: key for parser hook
     """
     defentrydata = defaultdict(lambda: None, entrydata)
-    return (direction, defentrydata["timing_type"] is not None and defentrydata["timing_type"] != 'combinational')
+    return (
+            direction,
+            defentrydata["timing_type"] is not None and
+            defentrydata["timing_type"] != 'combinational')
 
 
 def parseiopath(delval_rise, delval_fall, objectname, entrydata):
@@ -273,7 +277,7 @@ def parsesetuphold(delval_rise, delval_fall, objectname, entrydata):
     ptype = "setuphold"
     edgetype = 'posedge'
     delays = {"setup": delval_rise, "hold": delval_fall}
-    if 'timing_type'  in entrydata:
+    if 'timing_type' in entrydata:
         if entrydata['timing_type'] == 'falling_edge':
             edgetype = 'negedge'
         elif entrydata['timing_type'] == 'hold_falling':
@@ -296,8 +300,7 @@ def parsesetuphold(delval_rise, delval_fall, objectname, entrydata):
             return None
     else:
         log("ERROR", "timing_type not present, combinational entry")
-    # if delval_rise != delval_fall:
-    #     print(colored("WARNING: SETUPHOLD does not support different 0-1 and 1-0 setuphold values: {} != {}".format(delval_rise, delval_fall), "cyan"))
+
     element = sdfutils.add_tcheck(
             type=ptype,
             pto={
@@ -379,10 +382,10 @@ def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
     parserhooks[("output", False)] = [parseiopath]
 
     # extracts cell name and design name, ignore kfactor value
-    headerparser = re.compile(r'^\"?(?P<cell>[a-zA-Z_][a-zA-Z_0-9]*)\"?\s*cell\s*(?P<design>[a-zA-Z_][a-zA-Z_0-9]*).*') # noqa: E501
+    headerparser = re.compile(r'^\"?(?P<cell>[a-zA-Z_][a-zA-Z_0-9]*)\"?\s*cell\s*(?P<design>[a-zA-Z_][a-zA-Z_0-9]*).*')  # noqa: E501
 
     # extracts pin name and value
-    whenparser = re.compile("(?P<name>[a-zA-Z_][a-zA-Z_0-9]*(\[[0-9]*\])?)\s*==\s*1'b(?P<value>[0-1])(\s*&&)?") # noqa: E501
+    whenparser = re.compile("(?P<name>[a-zA-Z_][a-zA-Z_0-9]*(\[[0-9]*\])?)\s*==\s*1'b(?P<value>[0-1])(\s*&&)?")  # noqa: E501
 
     # parse header
     parsedheader = headerparser.match(header)
@@ -394,7 +397,7 @@ def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
             'date': date.today().strftime("%B %d, %Y"),
             'design': parsedheader.group('design'),
             'sdfversion': '3.0',
-            'voltage': {'avg': voltage, 'max': voltage, 'min': voltage },
+            'voltage': {'avg': voltage, 'max': voltage, 'min': voltage},
             }
 
     # name of the cell
@@ -408,26 +411,31 @@ def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
         # for all timing configurations in the cell
         if 'timing' in obj:
             elementnametotiming = defaultdict(lambda: [])
-            for timing in (obj['timing'] if type(obj['timing']) is list
-                    else [obj['timing']]):
+            for timing in (obj['timing']
+                           if type(obj['timing']) is list
+                           else [obj['timing']]):
                 cellname = instancename
                 if 'when' in timing:
                     # normally, the sdf_cond field should contain the name
                     # generated by the following code, but sometimes it is not
                     # present or represented by some specific constants
                     condlist = ['{}_EQ_{}'
-                            .format(entry.group('name'), entry.group('value'))
-                            for entry in whenparser.finditer(timing['when'])]
+                                .format(entry.group('name'),
+                                        entry.group('value'))
+                                for entry in whenparser.finditer(
+                                    timing['when'])]
                     if not condlist:
                         log("ERROR", "when entry not parsable:  {}"
-                                .format(timing['when']))
+                            .format(timing['when']))
                         return False
                     cellname += "_" + '_'.join(condlist)
 
                 # when the timing is defined for falling edge, add this info
                 # to cell name
-                if 'timing_type' in timing and 'falling' in timing['timing_type']:
-                    cellname += "_{}_EQ_1".format(timing['timing_type'].upper())
+                if 'timing_type' in timing:
+                    if 'falling' in timing['timing_type']:
+                        cellname += "_{}_EQ_1".format(
+                                timing['timing_type'].upper())
 
                 # extract intrinsic_rise and intrinsic_fall in SDF-friendly
                 # format
@@ -438,16 +446,17 @@ def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
                     element = func(rise, fall, objectname, timing)
                     if element is not None:
                         # Merge duplicated entries
-                        if element["name"] in cells[cellname][instancename]:
+                        elname = element["name"]
+                        if elname in cells[cellname][instancename]:
                             element = merge_delays(
-                                    cells[cellname][instancename][element["name"]],
+                                    cells[cellname][instancename][elname],
                                     element)
 
                         # memorize the timing entry responsible for given SDF
                         # entry
-                        elementnametotiming[element["name"]].append(timing)
+                        elementnametotiming[elname].append(timing)
                         # add SDF entry
-                        cells[cellname][instancename][element["name"]] = element
+                        cells[cellname][instancename][elname] = element
 
     # generate SDF file from dictionaries
     sdfparse.sdfyacc.cells = cells
