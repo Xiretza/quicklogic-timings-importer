@@ -266,6 +266,23 @@ def parseport(delval_rise, delval_fall, objectname, entrydata):
     #         paths={"rise": delval_rise, "fall": delval_fall})
     # return element
     pass
+def merge_delays(oldelement, newelement):
+    olddelays = oldelement["delay_paths"]
+    newdelays = newelement["delay_paths"]
+    delays = {**olddelays, **newdelays}
+    for key in delays.keys():
+        if key in olddelays and key in newdelays:
+            old = olddelays[key]
+            new = newdelays[key]
+            for dkey in old:
+                if new[dkey] is None or (
+                        old[dkey] is not None and old[dkey] > new[dkey]):
+                    delays[key][dkey] = old[dkey]
+                else:
+                    delays[key][dkey] = new[dkey]
+    element = oldelement
+    element["delay_paths"] = delays
+    return element
 
 
 def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
@@ -318,6 +335,7 @@ def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
         direction = obj['direction']
         # for all timing configurations in the cell
         if 'timing' in obj:
+            elementnametotiming = defaultdict(lambda: [])
             for timing in (obj['timing'] if type(obj['timing']) is list
                     else [obj['timing']]):
                 cellname = instancename
@@ -343,8 +361,11 @@ def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
                     element = func(rise, fall, objectname, timing)
                     if element is not None:
                         if element["name"] in cells[cellname][instancename]:
-                            log("INFO", "entry {}/{}/{} repeated".format(
-                                cellname, instancename, element["name"]))
+                            element = merge_delays(
+                                    cells[cellname][instancename][element["name"]],
+                                    element)
+
+                        elementnametotiming[element["name"]].append(timing)
                         cells[cellname][instancename][element["name"]] = element
 
     sdfparse.sdfyacc.cells = cells
