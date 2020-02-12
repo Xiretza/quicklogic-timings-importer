@@ -260,12 +260,6 @@ def parsesetuphold(delval_rise, delval_fall, objectname, entrydata):
     return element
 
 
-def parseport(delval_rise, delval_fall, objectname, entrydata):
-    # element = sdfutils.add_port(
-    #         portname={"port": objectname},
-    #         paths={"rise": delval_rise, "fall": delval_fall})
-    # return element
-    pass
 def merge_delays(oldelement, newelement):
     olddelays = oldelement["delay_paths"]
     newdelays = newelement["delay_paths"]
@@ -356,7 +350,6 @@ def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
 
                 rise, fall = extract_delval(timing)
 
-                # delay_paths = {"fall": fall, "rise": rise}
                 for func in parserhooks[getparsekey(timing, direction)]:
                     element = func(rise, fall, objectname, timing)
                     if element is not None:
@@ -376,13 +369,6 @@ def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
     sdffile = sdfwrite.emit_sdf(sdfparse.sdfyacc.timings)
 
     return sdffile
-    #                 parameternames.add((parkey, type(parval)))
-    #     # for parkey, parval in obj.items():
-    #     #     parameternames.add((parkey,type(parval)))
-    #     #     parameters[parkey] = parval
-    # pp(sorted(list(parameternames), key=lambda x: x[0]))
-
-    # Initialize Yacc and Lex
 
 
 if __name__ == "__main__":
