@@ -9,6 +9,28 @@ from termcolor import colored
 from datetime import date
 from collections import defaultdict
 
+LOGLEVELS = ["INFO", "WARNING", "ERROR", "ALL"]
+SUPPRESSBELOW = "ERROR"
+
+def log(ltype, message):
+    """Prints log messages.
+
+    Parameters
+    ----------
+    ltype: str
+        Log type, can be INFO, WARNING, ERROR
+    message: str
+        Log message
+    """
+    if not ltype in LOGLEVELS[:-1]:
+        return
+    dat = {"INFO": (0,"green"),
+           "WARNING": (1,"yellow"),
+           "ERROR": (2,"red"),
+           "ALL": (3, "black")}
+    if dat[ltype][0] >= dat[SUPPRESSBELOW][0]:
+        print(colored("{}: {}".format(ltype, message), dat[ltype][1]))
+
 
 def join_duplicate_keys(ordered_pairs) -> dict:
     '''Converts multiple key-value entries in input sequence to one entry.
@@ -116,8 +138,6 @@ def load_timing_info_from_lib(inputfilename: str) -> (str, dict):
     # sanity checking and duplicate entry handling
     for key, value in timingdict.items():
         if type(value) is list:
-            print(colored("WARNING: entry {} present multiple times in file"
-                .format(key), 'yellow'))
             finalentry = dict()
             for k in sorted(list(set([key for elements in value for key in elements]))):
                 first = True
@@ -217,11 +237,11 @@ def parsesetuphold(delval_rise, delval_fall, objectname, entrydata):
             ptype = 'setup'
             delays = {"nominal": delval_rise}
         elif entrydata['timing_type'] != 'rising_edge':
-            print(colored("WARNING: not supported timing_type: {}".format(
-                entrydata), "green"))
+            log("WARNING", "not supported timing_type: {} in {}".format(
+                entrydata['timing_type'], objectname))
             return None
     else:
-        print(colored("WARNING: timing_type not present", "yellow"))
+        log("ERROR", "timing_type not present, combinational entry")
     # if delval_rise != delval_fall:
     #     print(colored("WARNING: SETUPHOLD does not support different 0-1 and 1-0 setuphold values: {} != {}".format(delval_rise, delval_fall), "cyan"))
     element = sdfutils.add_tcheck(
@@ -309,8 +329,8 @@ def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
                             .format(entry.group('name'), entry.group('value'))
                             for entry in whenparser.finditer(timing['when'])]
                     if not condlist:
-                        print(colored("ERROR: when entry not parsable:  {}"
-                                .format(timing['when'])))
+                        log("ERROR", "when entry not parsable:  {}"
+                                .format(timing['when']))
                         return False
                     cellname += "_" + '_'.join(condlist)
                 if 'timing_type' in timing and 'falling' in timing['timing_type']:
@@ -323,8 +343,8 @@ def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
                     element = func(rise, fall, objectname, timing)
                     if element is not None:
                         if element["name"] in cells[cellname][instancename]:
-                            print(colored("ERROR, entry {}/{}/{} repeated".format(
-                                cellname, instancename, element["name"]), "red"))
+                            log("INFO", "entry {}/{}/{} repeated".format(
+                                cellname, instancename, element["name"]))
                         cells[cellname][instancename][element["name"]] = element
 
     sdfparse.sdfyacc.cells = cells
@@ -363,8 +383,16 @@ if __name__ == "__main__":
             "--voltage",
             help="The voltage for a given timing",
             type=float)
+    parser.add_argument(
+            "--log-suppress-below",
+            help="The mininal not suppressed log level",
+            type=str,
+            default="ERROR",
+            choices=LOGLEVELS)
 
     args = parser.parse_args()
+
+    SUPPRESSBELOW = args.log_suppress_below
 
     print("Processing {}".format(args.input))
     header, timingdict = load_timing_info_from_lib(args.input)
