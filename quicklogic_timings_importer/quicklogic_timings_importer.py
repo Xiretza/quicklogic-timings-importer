@@ -197,7 +197,7 @@ def extract_delval(libentry: dict):
 
 def getparsekey(entrydata, direction):
     defentrydata = defaultdict(lambda: None, entrydata)
-    return (direction, defentrydata["timing_type"] is not None)
+    return (direction, defentrydata["timing_type"] is not None and defentrydata["timing_type"] != 'combinational')
 
 
 def parseiopath(delval_rise, delval_fall, objectname, entrydata):
