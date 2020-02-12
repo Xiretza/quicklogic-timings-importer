@@ -196,11 +196,44 @@ def extract_delval(libentry: dict):
 
 
 def getparsekey(entrydata, direction):
+    """Generates keys for entry to corresponding parsing hook.
+
+    Parameters
+    ----------
+    entrydata: dict
+        Timing entry from Liberty-JSON structure to generate the key for
+    direction: str
+        The direction of pin, can be input, output, inout
+
+    Returns
+    -------
+    tuple: key for parser hook
+    """
     defentrydata = defaultdict(lambda: None, entrydata)
     return (direction, defentrydata["timing_type"] is not None and defentrydata["timing_type"] != 'combinational')
 
 
 def parseiopath(delval_rise, delval_fall, objectname, entrydata):
+    """Parses combinational entries into IOPATH.
+
+    This hook takes combinational output entries from LIB file, and generates
+    the corresponding IOPATH entry in SDF.
+
+    Parameters
+    ----------
+    delval_rise: dict
+        Delay values for IOPATH for 0->1 change
+    delval_fall: dict
+        Delay values for IOPATH for 1->0 change
+    objectname: str
+        The name of the cell containing given pin
+    entrydata: dict
+        Converted LIB struct fro given pin
+
+    Returns
+    -------
+    dict: SDF entry for a given pin
+    """
     element = sdfutils.add_iopath(
             pfrom={
                 "port": entrydata["related_pin"],
@@ -216,6 +249,27 @@ def parseiopath(delval_rise, delval_fall, objectname, entrydata):
 
 
 def parsesetuphold(delval_rise, delval_fall, objectname, entrydata):
+    """Parses clock-depending entries into timingcheck entry.
+
+    This hook takes timing information from LIB file for pins depending on
+    clocks (like setup, hold, etc.), and generates the corresponding
+    TIMINGCHECK entry in SDF.
+
+    Parameters
+    ----------
+    delval_rise: dict
+        Delay values for TIMINGCHECK
+    delval_fall: dict
+        Delay values for TIMINGCHECK (should not differ from delval_rise)
+    objectname: str
+        The name of the cell containing given pin
+    entrydata: dict
+        Converted LIB struct fro given pin
+
+    Returns
+    -------
+    dict: SDF entry for a given pin
+    """
     ptype = "setuphold"
     edgetype = 'posedge'
     delays = {"setup": delval_rise, "hold": delval_fall}
@@ -261,6 +315,27 @@ def parsesetuphold(delval_rise, delval_fall, objectname, entrydata):
 
 
 def merge_delays(oldelement, newelement):
+    """Merges delays for "duplicated" entries.
+
+    LIB format contains field `timing_sense` that describes to what changes
+    between the input and output the given entry refers to (`positive_unate`,
+    `negative_unate`, `non_unate`).
+
+    SDF does not support such parameter diversity, so for now when there are
+    different delay values of parameters depending on `timing_sense` field,
+    then we take the worst possible timings.
+
+    Parameters
+    ----------
+    oldelement: dict
+        Previous pin entry for cell
+    newelement: dict
+        New pin entry for cell
+
+    Returns
+    -------
+    dict: Merged entry
+    """
     olddelays = oldelement["delay_paths"]
     newdelays = newelement["delay_paths"]
     delays = {**olddelays, **newdelays}
@@ -293,6 +368,7 @@ def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
         A dictionary containing parsed LIB file
     '''
 
+    # setup hooks that run different parsing functions based on current entry
     parserhooks = {}
 
     parserhooks[("input", True)] = [parsesetuphold]
@@ -308,8 +384,10 @@ def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
     # extracts pin name and value
     whenparser = re.compile("(?P<name>[a-zA-Z_][a-zA-Z_0-9]*(\[[0-9]*\])?)\s*==\s*1'b(?P<value>[0-1])(\s*&&)?") # noqa: E501
 
+    # parse header
     parsedheader = headerparser.match(header)
 
+    # initialize Yacc dictionaries holding data
     sdfparse.init()
 
     sdfparse.sdfyacc.header = {
@@ -345,22 +423,33 @@ def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
                                 .format(timing['when']))
                         return False
                     cellname += "_" + '_'.join(condlist)
+
+                # when the timing is defined for falling edge, add this info
+                # to cell name
                 if 'timing_type' in timing and 'falling' in timing['timing_type']:
                     cellname += "_{}_EQ_1".format(timing['timing_type'].upper())
 
+                # extract intrinsic_rise and intrinsic_fall in SDF-friendly
+                # format
                 rise, fall = extract_delval(timing)
 
+                # run all defined hooks for given timing entry
                 for func in parserhooks[getparsekey(timing, direction)]:
                     element = func(rise, fall, objectname, timing)
                     if element is not None:
+                        # Merge duplicated entries
                         if element["name"] in cells[cellname][instancename]:
                             element = merge_delays(
                                     cells[cellname][instancename][element["name"]],
                                     element)
 
+                        # memorize the timing entry responsible for given SDF
+                        # entry
                         elementnametotiming[element["name"]].append(timing)
+                        # add SDF entry
                         cells[cellname][instancename][element["name"]] = element
 
+    # generate SDF file from dictionaries
     sdfparse.sdfyacc.cells = cells
     sdfparse.sdfyacc.timings = {
             "cells": sdfparse.sdfyacc.cells,
@@ -372,6 +461,8 @@ def export_sdf_from_lib_dict(header: str, voltage: float, lib_dict: dict):
 
 
 if __name__ == "__main__":
+    # TODO: support missing timing_type
+    # TODO: support tristate
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
