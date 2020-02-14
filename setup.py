@@ -1,6 +1,6 @@
 import setuptools
 
-with open("README.md", "r") as fh:
+with open("README.rst", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
@@ -8,7 +8,7 @@ setuptools.setup(
     version="0.0.1",
     packages=setuptools.find_packages(),
     long_description=long_description,
-    long_description_content_type="text/markdown",
+    long_description_content_type="text/x-rst",
     author="Antmicro Ltd.",
     author_email="contact@antmicro.com",
     entry_points={
