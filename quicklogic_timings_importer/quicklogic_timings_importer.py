@@ -492,7 +492,9 @@ class LibertyToSDFParser():
         return sdffile
 
 
-if __name__ == "__main__":
+def main():
+    global SUPPRESSBELOW
+
     # TODO: support missing timing_type
     # TODO: support tristate
 
@@ -539,3 +541,7 @@ if __name__ == "__main__":
 
     with open(args.output, 'w') as out:
         out.write(result)
+
+
+if __name__ == "__main__":
+    main()
