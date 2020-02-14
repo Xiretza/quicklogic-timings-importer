@@ -12,6 +12,9 @@ LOGLEVELS = ["INFO", "WARNING", "ERROR", "ALL"]
 SUPPRESSBELOW = "ERROR"
 
 
+ctypes = ['combinational', 'three_state_disable', 'three_state_enable']
+
+
 def log(ltype, message):
     """Prints log messages.
 
@@ -214,7 +217,7 @@ def getparsekey(entrydata, direction):
     return (
             direction,
             defentrydata["timing_type"] is not None and
-            defentrydata["timing_type"] != 'combinational')
+            defentrydata["timing_type"] not in ctypes)
 
 
 def parseiopath(delval_rise, delval_fall, objectname, entrydata):
@@ -274,32 +277,40 @@ def parsesetuphold(delval_rise, delval_fall, objectname, entrydata):
     -------
     dict: SDF entry for a given pin
     """
-    ptype = "setuphold"
-    edgetype = 'posedge'
-    delays = {"setup": delval_rise, "hold": delval_fall}
-    if 'timing_type' in entrydata:
-        if entrydata['timing_type'] == 'falling_edge':
-            edgetype = 'negedge'
-        elif entrydata['timing_type'] == 'hold_falling':
-            ptype = 'hold'
-            edgetype = 'negedge'
-            delays = {"nominal": delval_rise}
-        elif entrydata['timing_type'] == 'hold_rising':
-            ptype = 'hold'
-            delays = {"nominal": delval_rise}
-        elif entrydata['timing_type'] == 'setup_falling':
-            ptype = 'setup'
-            edgetype = 'negedge'
-            delays = {"nominal": delval_rise}
-        elif entrydata['timing_type'] == 'setup_rising':
-            ptype = 'setup'
-            delays = {"nominal": delval_rise}
-        elif entrydata['timing_type'] != 'rising_edge':
+
+    typestoedges = {
+        'falling_edge': ('setuphold', 'negedge'),
+        'rising_edge': ('setuphold', 'posedge'),
+        'hold_falling': ('hold', 'negedge'),
+        'hold_rising': ('hold', 'posedge'),
+        'setup_falling': ('setup', 'negedge'),
+        'setup_rising': ('setup', 'posedge'),
+        'removal_falling': ('removal', 'negedge'),
+        'removal_rising': ('removal', 'posedge'),
+        'recovery_falling': ('recovery', 'negedge'),
+        'recovery_rising': ('recovery', 'posedge'),
+        'skew_falling': ('skew', 'negedge'),
+        'skew_rising': ('skew', 'posedge'),
+        'clear': None,
+    }
+    # combinational types, should not be present in this function
+    if 'timing_type' in entrydata and entrydata['timing_type'] not in ctypes:
+        timing_type = entrydata['timing_type']
+        if timing_type not in typestoedges:
             log("WARNING", "not supported timing_type: {} in {}".format(
-                entrydata['timing_type'], objectname))
+                timing_type, objectname))
             return None
+        if typestoedges[timing_type] is None:
+            log("INFO", 'timing type is ignored: {}'.format(timing_type))
+            return None
+        if timing_type in ['falling_edge', 'rising_edge']:
+            delays = {"setup": delval_rise, "hold": delval_fall}
+        else:
+            delays = {"nominal": delval_fall}
+        ptype, edgetype = typestoedges[timing_type]
     else:
-        log("ERROR", "timing_type not present, combinational entry")
+        log("ERROR", "combinational entry in sequential timing arcs parsing")
+        assert entrydata['timing_type'] not in ctypes
 
     element = sdfutils.add_tcheck(
             type=ptype,
