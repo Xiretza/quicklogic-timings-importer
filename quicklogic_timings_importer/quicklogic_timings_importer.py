@@ -67,73 +67,18 @@ class LibertyToSDFParser():
         return d
 
     @classmethod
-    def load_timing_info_from_lib(cls, inputfilename: str) -> list((str, str)):
+    def load_timing_info_from_lib(cls, libfile: list) -> (str, dict):
         '''Reads the LIB file and converts it to dictionary structure.
 
         Parameters
         ----------
-        inputfilename: str
-            The name of LIB file to process
+        libfile: list
+            The lines for input LIB file
 
         Returns
         -------
-            list(str, str): a list of tuples containing string representing
-            cell instance header and cell instance definition data.
+            dict: a dictionary containing the whole structure of the file
         '''
-
-        # Load LIB file
-        with open(inputfilename, 'r') as infile:
-            libfile = infile.readlines()
-
-        # remove empty lines
-        libfile = [line.rstrip() for line in libfile if line.strip()]
-
-        # remove comments (C/C++ style)
-        fullfile = '\n'.join(libfile)
-        fullfile = re.sub(r'(?:\/\*(.*?)\*\/)|(?:\/\/(.*?))', '',
-                          fullfile, flags=re.DOTALL)
-        libfile = fullfile.split('\n')
-
-        # Split the file into individual cell definitions. First identify
-        # split points which are cell headers. Add the last line index in order
-        # to catch the last cell in the file.
-        split_points = [i for i, line in enumerate(libfile) if \
-            cls.headerparser.match(line) is not None]
-        split_points.append(len(libfile))
-
-        # Now split the input lib file, preserve headers
-        libfiles = []
-        for i in range(len(split_points)-1):
-            l0 = split_points[i]
-            l1 = split_points[i+1]
-            libfiles.append({
-                "header": libfile[l0],
-                "data":   libfile[l0+1:l1]
-            })
-
-        # Parse each one
-        parsed_data = []
-        for data in libfiles:
-            timing_dict = cls.parse_lib(data["data"])
-            parsed_data.append((data["header"], timing_dict))
-
-        return parsed_data
-
-    @classmethod
-    def parse_lib(cls, libfile) -> dict:
-        """
-        Parses cell definition given as a list of lines. Returns a dict with
-        all the data.
-
-        Parameters
-        ----------
-        libfile: list(str)
-            List of lines to process.
-
-        Returns
-        -------
-            dict: a dict with parsed cell data.
-        """
 
         # REGEX defining the dictionary name in LIB file, i.e. "pin ( QAI )",
         # "pin(FBIO[22])" or "timing()"
@@ -144,11 +89,14 @@ class LibertyToSDFParser():
         # not within quotes
         vardecl = re.compile(r'(?P<variable>(?<!\")[a-zA-Z_][a-zA-Z_0-9]*(\[[0-9]+\])?(?![^\:]*\"))')  # noqa: E501
 
-        # Keep only non-empty lines
-        libfile = [l for l in libfile if len(l) != 0]
+        # remove empty lines
+        libfile = [line.rstrip() for line in libfile if line.strip()]
 
-        # remove PORT DELAY root name
-        libfile[0] = '{'
+        # remove comments (C/C++ style)
+        fullfile = '\n'.join(libfile)
+        fullfile = re.sub(r'(?:\/\*(.*?)\*\/)|(?:\/\/(.*?))', '',
+                          fullfile, flags=re.DOTALL)
+        libfile = fullfile.split('\n')
 
         # replace semicolons with commas
         libfile = [line.replace(';', ',') for line in libfile]
@@ -459,67 +407,16 @@ class LibertyToSDFParser():
         # Process each cell instance
         cells = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
 
-        for header, timing_dict in parsed_lib:
+        keys = [key for key in lib_dict.keys()]
 
-            # Parse the header, extract cell and instance name
-            parsedheader = cls.headerparser.match(header)
-            cell_name = parsedheader.group('cell')
+        if len(keys) != 1 or not keys[0].startswith('library'):
+            log('ERROR', 'JSON does not represent Liberty library')
+            return None
 
-            match = instance_re.match(header)
-            if match is not None:
-                instance_name = match.group("instance")
-            else:
-                instance_name = cell_name
-
-            match = kfactor_re.match(header)
-            if match is not None:
-                kfactor = float(match.group("kfactor"))
-            else:
-                kfactor = 1.0
-
-            # Process cell data
-            cls.export_sdf_cell(
-                cells,
-                timing_dict,
-                cell_name,
-                instance_name,
-                kfactor
-            )
-
-
-        # generate SDF file from dictionaries
-        sdfparse.sdfyacc.cells = cells
-        sdfparse.sdfyacc.timings = {
-                "cells": sdfparse.sdfyacc.cells,
-                "header": sdfparse.sdfyacc.header}
-
-        sdffile = sdfwrite.emit_sdf(sdfparse.sdfyacc.timings)
-
-        return sdffile
-
-
-    @classmethod
-    def export_sdf_cell(cls, cells, lib_dict, cell_name, instance_name, kfactor):
-        """
-        Converts parsed cell data to SDF writer structs.
-        """
-
-        # extracts pin name and value
-        whenparser = re.compile("(?P<name>[a-zA-Z_][a-zA-Z_0-9]*(\[[0-9]*\])?)\s*==\s*1'b(?P<value>[0-1])(\s*&&)?")  # noqa: E501
-
-        # setup hooks that run different parsing functions based on current
-        # entry
-        parserhooks = {}
-
-        parserhooks[("input", True)] = [cls.parsesetuphold]
-        parserhooks[("input", False)] = [cls.parseiopath]
-        parserhooks[("inout", True)] = [cls.parsesetuphold]
-        parserhooks[("inout", False)] = [cls.parseiopath]
-        parserhooks[("output", True)] = [cls.parsesetuphold]
-        parserhooks[("output", False)] = [cls.parseiopath]
+        librarycontent = lib_dict[keys[0]]
 
         # for all pins in the cell
-        for objectname, obj in lib_dict.items():
+        for objectname, obj in librarycontent.items():
             direction = obj['direction']
             # for all timing configurations in the cell
             if 'timing' in obj:
@@ -607,9 +504,48 @@ def main():
 
     SUPPRESSBELOW = args.log_suppress_below
 
+    # Load LIB file
+    with open(args.input, 'r') as infile:
+        libfile = infile.readlines()
+
+    # remove empty lines and trailing whitespaces
+    libfile = [line.rstrip() for line in libfile if line.strip()]
+
+    # extract file header
+    header = libfile.pop(0)
+
+    # remove PORT DELAY root name
+    libfile[0] = r'library \({}\) {}'.format(
+            header.replace(' ', '_').replace('.', '_').replace('"', ''), '{')
+    libfile = ['{\n'] + libfile + ['}']
+
     print("Processing {}".format(args.input))
-    parsed_lib = LibertyToSDFParser.load_timing_info_from_lib(
-            args.input)
+    timingdict = LibertyToSDFParser.load_timing_info_from_lib(libfile)
+
+    libkey = [key for key in timingdict.keys()][0]
+
+    # sanity checking and duplicate entry handling
+    for key, value in timingdict[libkey].items():
+        if type(value) is list:
+            finalentry = dict()
+            for k in sorted(list(
+                    set([key for elements in value for key in elements]))):
+                first = True
+                val = None
+                for duplicate in value:
+                    if k in duplicate:
+                        if first:
+                            val = duplicate[k]
+                            first = False
+                        assert duplicate[k] == val, \
+                            "ERROR: entries for {} have different" \
+                            "values for parameter {}: {} != {}".format(
+                                    key,
+                                    k,
+                                    val,
+                                    duplicate[k])
+                finalentry[k] = val
+            timingdict[libkey][key] = finalentry
 
     result = LibertyToSDFParser.export_sdf_from_lib(
             args.voltage,
