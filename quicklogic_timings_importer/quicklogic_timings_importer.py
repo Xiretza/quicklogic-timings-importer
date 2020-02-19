@@ -64,18 +64,17 @@ class LibertyToSDFParser():
         return d
 
     @classmethod
-    def load_timing_info_from_lib(cls, inputfilename: str) -> (str, dict):
+    def load_timing_info_from_lib(cls, libfile: list) -> (str, dict):
         '''Reads the LIB file and converts it to dictionary structure.
 
         Parameters
         ----------
-        inputfilename: str
-            The name of LIB file to process
+        libfile: list
+            The lines for input LIB file
 
         Returns
         -------
-            (str, dict): a tuple containing string representing file header and
-            dictionary containing the whole structure of the file
+            dict: a dictionary containing the whole structure of the file
         '''
 
         # REGEX defining the dictionary name in LIB file, i.e. "pin ( QAI )",
@@ -87,9 +86,6 @@ class LibertyToSDFParser():
         # not within quotes
         vardecl = re.compile(r'(?P<variable>(?<!\")[a-zA-Z_][a-zA-Z_0-9]*(\[[0-9]+\])?(?![^\:]*\"))')  # noqa: E501
 
-        # Load LIB file
-        with open(inputfilename, 'r') as infile:
-            libfile = infile.readlines()
 
         # remove empty lines
         libfile = [line.rstrip() for line in libfile if line.strip()]
@@ -101,11 +97,7 @@ class LibertyToSDFParser():
         libfile = fullfile.split('\n')
         fullfile = ''
 
-        # extract file header
-        header = libfile.pop(0)
 
-        # remove PORT DELAY root name
-        libfile[0] = '{'
 
         # replace semicolons with commas
         libfile = [line.replace(';', ',') for line in libfile]
@@ -144,30 +136,7 @@ class LibertyToSDFParser():
         timingdict = json.loads('\n'.join(libfile),
                                 object_pairs_hook=cls.join_duplicate_keys)
 
-        # sanity checking and duplicate entry handling
-        for key, value in timingdict.items():
-            if type(value) is list:
-                finalentry = dict()
-                for k in sorted(list(
-                        set([key for elements in value for key in elements]))):
-                    first = True
-                    val = None
-                    for duplicate in value:
-                        if k in duplicate:
-                            if first:
-                                val = duplicate[k]
-                                first = False
-                            assert duplicate[k] == val, \
-                                "ERROR: entries for {} have different" \
-                                "values for parameter {}: {} != {}".format(
-                                        key,
-                                        k,
-                                        val,
-                                        duplicate[k])
-                    finalentry[k] = val
-                timingdict[key] = finalentry
-
-        return header, timingdict
+        return timingdict
 
     @classmethod
     def extract_delval(cls, libentry: dict):
@@ -425,8 +394,16 @@ class LibertyToSDFParser():
 
         cells = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
 
+        keys = [key for key in lib_dict.keys()]
+
+        if len(keys) != 1 or not keys[0].startswith('library'):
+            log('ERROR', 'JSON does not represent Liberty library')
+            return None
+
+        librarycontent = lib_dict[keys[0]]
+
         # for all pins in the cell
-        for objectname, obj in lib_dict.items():
+        for objectname, obj in librarycontent.items():
             direction = obj['direction']
             # for all timing configurations in the cell
             if 'timing' in obj:
@@ -524,9 +501,48 @@ def main():
 
     SUPPRESSBELOW = args.log_suppress_below
 
+    # Load LIB file
+    with open(args.input, 'r') as infile:
+        libfile = infile.readlines()
+
+    # remove empty lines and trailing whitespaces
+    libfile = [line.rstrip() for line in libfile if line.strip()]
+
+    # extract file header
+    header = libfile.pop(0)
+
+    # remove PORT DELAY root name
+    libfile[0] = r'library \({}\) {}'.format(
+            header.replace(' ', '_').replace('.', '_').replace('"', ''), '{')
+    libfile = ['{\n'] + libfile + ['}']
+
     print("Processing {}".format(args.input))
-    header, timingdict = LibertyToSDFParser.load_timing_info_from_lib(
-            args.input)
+    timingdict = LibertyToSDFParser.load_timing_info_from_lib(libfile)
+
+    libkey = [key for key in timingdict.keys()][0]
+
+    # sanity checking and duplicate entry handling
+    for key, value in timingdict[libkey].items():
+        if type(value) is list:
+            finalentry = dict()
+            for k in sorted(list(
+                    set([key for elements in value for key in elements]))):
+                first = True
+                val = None
+                for duplicate in value:
+                    if k in duplicate:
+                        if first:
+                            val = duplicate[k]
+                            first = False
+                        assert duplicate[k] == val, \
+                            "ERROR: entries for {} have different" \
+                            "values for parameter {}: {} != {}".format(
+                                    key,
+                                    k,
+                                    val,
+                                    duplicate[k])
+                finalentry[k] = val
+            timingdict[libkey][key] = finalentry
 
     if args.json_output:
         with open(args.json_output, 'w') as out:
