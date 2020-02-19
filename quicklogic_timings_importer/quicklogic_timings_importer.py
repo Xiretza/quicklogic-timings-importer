@@ -93,6 +93,9 @@ class LibertyToSDFParser():
         vardecl = re.compile(r'(?P<variable>(?<!\"){vardef}(\[[0-9]+\])?(?![^\:]*\"))'.format(vardef=vardef))  # noqa: E501
 
 
+        # REGEX defining Liberty `define` statements
+        defdecl = re.compile(r'{inddef}define\s*\(\s*(?P<attribute_name>{vardef})\s*,\s*(?P<group_name>{vardef})\s*,\s*(?P<attribute_type>{vardef})\s*\)\s*,'.format(vardef=vardef, inddef=inddef))  # noqa: E501
+
         # REGEX defining lines with no ending colon
         nocommadecl = re.compile(r'(?P<content>{inddef}{vardef}\s*:\s*(\"[^\n\"\(\)]+\"|[^\n\s\"\(\),]+))\s*$'.format(inddef=inddef, vardef=vardef))  # noqa: E501
 
@@ -123,6 +126,13 @@ class LibertyToSDFParser():
             # add comma if not present
             # TODO: not sure if this should be accepted or returned as error
             libfile[i] = nocommadecl.sub(r'\g<content>,', libfile[i])
+
+            # parse `define` entries
+            libfile[i] = defdecl.sub(
+                    r'\g<indent>"define" : {"attribute_name": '
+                    r'"\g<attribute_name>", "group_name": "\g<group_name>", '
+                    r'"attribute_type": "\g<attribute_type>"}',
+                    libfile[i])
 
             # remove parenthesis from struct names
             structmatch = structdecl.match(libfile[i])
