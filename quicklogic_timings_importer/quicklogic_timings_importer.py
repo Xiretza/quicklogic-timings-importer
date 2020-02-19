@@ -95,6 +95,9 @@ class LibertyToSDFParser():
         # not within quotes
         vardecl = re.compile(r'(?P<variable>(?<!\"){vardef}(\[[0-9]+\])?(?![^\:]*\"))'.format(vardef=vardef))  # noqa: E501
 
+        # REGEX defining lines with no ending colon
+        nocommadecl = re.compile(r'(?P<content>{inddef}{vardef}\s*:\s*(\"[^\n\"\(\)]+\"|[^\n\s\"\(\),]+))\s*$'.format(inddef=inddef, vardef=vardef))  # noqa: E501
+
         # remove empty lines and trailing whitespaces
         libfile = [line.rstrip() for line in libfile if line.strip()]
 
@@ -119,6 +122,10 @@ class LibertyToSDFParser():
         libfile = [line.replace(';', ',') for line in libfile]
 
         for i in range(len(libfile)):
+            # add comma if not present
+            # TODO: not sure if this should be accepted or returned as error
+            libfile[i] = nocommadecl.sub(r'\g<content>,', libfile[i])
+
             # remove parenthesis from struct names
             structmatch = structdecl.match(libfile[i])
             if structmatch:
