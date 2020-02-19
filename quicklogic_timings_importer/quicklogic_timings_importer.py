@@ -80,14 +80,20 @@ class LibertyToSDFParser():
             dict: a dictionary containing the whole structure of the file
         '''
 
+        # regex for indent
+        inddef = r'^(?P<indent>\s*)'
+
+        # regex for variables
+        vardef = r'([A-Za-z_][a-zA-Z_0-9]*)'
+
         # REGEX defining the dictionary name in LIB file, i.e. "pin ( QAI )",
         # "pin(FBIO[22])" or "timing()"
-        structdecl = re.compile(r'^(?P<indent>\s*)(?P<type>[A-Za-z]+)\s*\(\s*\"?(?P<name>[A-Za-z0-9_]*(\[[0-9]+\])?)\"?\s*\)')  # noqa: E501
+        structdecl = re.compile(r'{inddef}(?P<type>{vardef})\s*\(\s*\"?(?P<name>{vardef}(\[[0-9]+\])?)?\"?\s*\)'.format(vardef=vardef, inddef=inddef))  # noqa: E501
 
         # REGEX defining typical variable name, which is any variable starting
         # with alphabetic character, followed by [A-Za-z_0-9] characters, and
         # not within quotes
-        vardecl = re.compile(r'(?P<variable>(?<!\")[a-zA-Z_][a-zA-Z_0-9]*(\[[0-9]+\])?(?![^\:]*\"))')  # noqa: E501
+        vardecl = re.compile(r'(?P<variable>(?<!\"){vardef}(\[[0-9]+\])?(?![^\:]*\"))'.format(vardef=vardef))  # noqa: E501
 
         # remove empty lines
         libfile = [line.rstrip() for line in libfile if line.strip()]
