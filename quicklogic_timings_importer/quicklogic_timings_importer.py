@@ -118,24 +118,26 @@ class LibertyToSDFParser():
         # replace semicolons with commas
         libfile = [line.replace(';', ',') for line in libfile]
 
-        # remove parenthesis from struct names
-        for i, line in enumerate(libfile):
-            structmatch = structdecl.match(line)
+        for i in range(len(libfile)):
+            # remove parenthesis from struct names
+            structmatch = structdecl.match(libfile[i])
             if structmatch:
                 if structmatch.group("name"):
-                    libfile[i] = structdecl.sub(r'\g<indent>\g<name> :', line)
+                    libfile[i] = structdecl.sub(
+                            r'\g<indent>"\g<type> \g<name>" :',
+                            libfile[i])
                 else:
                     libfile[i] = structdecl.sub(
-                            r'\g<indent>\g<type>\g<name> :',
-                            line)
+                            r'\g<indent>"\g<type>" :',
+                            libfile[i])
 
-        # wrap all text in quotes
-        for i, line in enumerate(libfile):
-            libfile[i] = vardecl.sub(r'"\g<variable>"', line)
 
-        # add colons after closing braces
-        for i, line in enumerate(libfile):
-            libfile[i] = line.replace("}", "},")
+
+            # wrap all text in quotes
+            libfile[i] = vardecl.sub(r'"\g<variable>"', libfile[i])
+
+            # add colons after closing braces
+            libfile[i] = libfile[i].replace("}", "},")
 
         # remove colons before closing braces
         fullfile = '\n'.join(libfile)
