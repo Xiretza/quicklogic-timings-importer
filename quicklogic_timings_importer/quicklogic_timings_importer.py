@@ -95,14 +95,25 @@ class LibertyToSDFParser():
         # not within quotes
         vardecl = re.compile(r'(?P<variable>(?<!\"){vardef}(\[[0-9]+\])?(?![^\:]*\"))'.format(vardef=vardef))  # noqa: E501
 
-        # remove empty lines
+        # remove empty lines and trailing whitespaces
         libfile = [line.rstrip() for line in libfile if line.strip()]
 
-        # remove comments (C/C++ style)
+        # join all lines into single string
         fullfile = '\n'.join(libfile)
+
+        # remove comments (C/C++ style)
         fullfile = re.sub(r'(?:\/\*(.*?)\*\/)|(?:\/\/(.*?))', '',
                           fullfile, flags=re.DOTALL)
+
+        # remove comments (Python style)
+        fullfile = re.sub(r'#[^\n]*\n', '', fullfile, flags=re.DOTALL)
+
+        # remove line breaks
+        fullfile = re.sub(r'\\[\s\n\r\t]*', '', fullfile, flags=re.DOTALL)
+
+        # split single string into lines
         libfile = fullfile.split('\n')
+        fullfile = ''
 
         # replace semicolons with commas
         libfile = [line.replace(';', ',') for line in libfile]
