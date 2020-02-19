@@ -83,6 +83,9 @@ class LibertyToSDFParser():
         # regex for variables
         vardef = r'([A-Za-z_][a-zA-Z_0-9]*)'
 
+        # regex for arrays
+        arrdef = r'(\s*\"\s*(?P<arrvalues>(-?[0-9]+(\.[0-9]+)?(,\s*)?)+)\s*\"\s*,?)'  # noqa: E501
+
         # REGEX defining the dictionary name in LIB file, i.e. "pin ( QAI )",
         # "pin(FBIO[22])" or "timing()"
         structdecl = re.compile(r'{inddef}(?P<type>{vardef})\s*\(\s*\"?(?P<name>{vardef}(\[[0-9]+\])?)?\"?\s*\)'.format(vardef=vardef, inddef=inddef))  # noqa: E501
@@ -95,6 +98,13 @@ class LibertyToSDFParser():
         # not within quotes
         vardecl = re.compile(r'(?P<variable>(?<!\"){vardef}(\[[0-9]+\])?(?![^\:]*\"))'.format(vardef=vardef))  # noqa: E501
 
+        # REGEX defining array for lu_table_template template breakpoints
+        arrdecl = re.compile(r'{inddef}(?P<arrname>{vardef})\s*\((?P<array>{arrdef}+)\)'.format(vardef=vardef, inddef=inddef, arrdef=arrdef))  # noqa: E501
+
+        # REGEX defining arrays
+        subarrdecl = re.compile(arrdef)
+
+        singlearr = re.compile(r'{inddef}\"(?P<arrname>{vardef})\"\s*:{arrdef}'.format(vardef=vardef, inddef=inddef, arrdef=arrdef))  # noqa: E501
 
         # REGEX defining Liberty `define` statements
         defdecl = re.compile(r'{inddef}define\s*\(\s*(?P<attribute_name>{vardef})\s*,\s*(?P<group_name>{vardef})\s*,\s*(?P<attribute_type>{vardef})\s*\)\s*,'.format(vardef=vardef, inddef=inddef))  # noqa: E501
@@ -154,7 +164,33 @@ class LibertyToSDFParser():
                             r'\g<indent>"\g<type>" :',
                             libfile[i])
 
+            # parse array entries to make them JSON-compliant
+            arrmatch = arrdecl.match(libfile[i])
+            if arrmatch:
+                arrays = ''
 
+                first = True
+                matches = [match for match in
+                           subarrdecl.finditer(arrmatch.group("array"))]
+                for match in matches:
+                    if first:
+                        if len(matches) == 1:
+                            arrays = '{}'.format(match.group('arrvalues'))
+                        else:
+                            arrays = '[{}]'.format(match.group('arrvalues'))
+                        first = False
+                    else:
+                        arrays += ', [{}]'.format(match.group('arrvalues'))
+
+                libfile[i] = '{indent}{arrname} : [{arrays}]'.format(
+                        indent=arrmatch.group('indent'),
+                        arrname=arrmatch.group('arrname'),
+                        arrays=arrays)
+
+            # convert array-like attributes to arrays
+            libfile[i] = singlearr.sub(
+                    r'\g<indent>"\g<arrname>" : [\g<arrvalues>],',
+                    libfile[i])
 
             # wrap all text in quotes
             libfile[i] = vardecl.sub(r'"\g<variable>"', libfile[i])
