@@ -90,6 +90,9 @@ class LibertyToSDFParser():
         # "pin(FBIO[22])" or "timing()"
         structdecl = re.compile(r'{inddef}(?P<type>{vardef})\s*\(\s*\"?(?P<name>{vardef}(\[[0-9]+\])?)?\"?\s*\)'.format(vardef=vardef, inddef=inddef))  # noqa: E501
 
+        # REGEX defining global "attribute (entry);" statements
+        attdecl = re.compile(r'{inddef}(?P<attrname>{vardef})\s*\(\s*\"?(?P<attrval>[^\n\"\(\)]+)\"?\s*\)\s*,'.format(vardef=vardef, inddef=inddef))  # noqa: E501
+
         # REGEX defining typical variable name, which is any variable starting
         # with alphabetic character, followed by [A-Za-z_0-9] characters, and
         # not within quotes
@@ -134,6 +137,11 @@ class LibertyToSDFParser():
                     r'\g<indent>"define" : {"attribute_name": '
                     r'"\g<attribute_name>", "group_name": "\g<group_name>", '
                     r'"attribute_type": "\g<attribute_type>"}',
+                    libfile[i])
+
+            # parse attribute entries
+            libfile[i] = attdecl.sub(
+                    r'\g<indent>"\g<attrname>" : "\g<attrval>",',
                     libfile[i])
 
             # remove parenthesis from struct names
