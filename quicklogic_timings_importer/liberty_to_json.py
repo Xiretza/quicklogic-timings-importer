@@ -54,22 +54,23 @@ class LibertyToJSONParser():
         inddef = r'^(?P<indent>\s*)'
 
         # regex for variables
-        vardef = r'([A-Za-z_][a-zA-Z_0-9]*)'
+        vardef = r'([A-Za-z_][a-zA-Z_0-9\-]*)'
+
+        # regex for floating-point numbers
+        numdef = r'[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?'
+
+        # regex for all allowed characters in struct definition name
+        alloweddef = r'[^\n\"{{]+'
 
         # regex for arrays
-        arrdef = r'(\s*\"\s*(?P<arrvalues>(-?[0-9]+(\.[0-9]+)?(,\s*)?)+)\s*\"\s*,?)'  # noqa: E501
+        arrdef = r'(\s*\"\s*(?P<arrvalues>({numdef}(,\s*)?)+)\s*\"\s*,?)'.format(numdef=numdef)  # noqa: E501
 
         # REGEX defining the dictionary name in LIB file, i.e. "pin ( QAI )",
         # "pin(FBIO[22])" or "timing()"
-        structdecl = re.compile(r'{inddef}(?P<type>{vardef})\s*\(\s*\"?(?P<name>{vardef}(\[[0-9]+\])?)?\"?\s*\)'.format(vardef=vardef, inddef=inddef))  # noqa: E501
+        structdecl = re.compile(r'{inddef}(?P<type>{vardef})\s*\(\s*\"?(?P<name>[^\n{{]+)?\"?\s*\)'.format(vardef=vardef, inddef=inddef, alloweddef=alloweddef))  # noqa: E501
 
         # REGEX defining global "attribute (entry);" statements
-        attdecl = re.compile(r'{inddef}(?P<attrname>{vardef})\s*\(\s*\"?(?P<attrval>[^\n\"\(\)]+)\"?\s*\)\s*,'.format(vardef=vardef, inddef=inddef))  # noqa: E501
-
-        # REGEX defining typical variable name, which is any variable starting
-        # with alphabetic character, followed by [A-Za-z_0-9] characters, and
-        # not within quotes
-        vardecl = re.compile(r'(?P<variable>(?<!\"){vardef}(\[[0-9]+\])?(?![^\:]*\"))'.format(vardef=vardef))  # noqa: E501
+        attdecl = re.compile(r'{inddef}(?P<attrname>{vardef})\s*\(\s*\"?(?P<attrval>[^\n\(\)]+?)\"?\s*\)\s*,$'.format(vardef=vardef, inddef=inddef))  # noqa: E501
 
         # REGEX defining array for lu_table_template template breakpoints
         arrdecl = re.compile(r'{inddef}(?P<arrname>{vardef})\s*\((?P<array>{arrdef}+)\)'.format(vardef=vardef, inddef=inddef, arrdef=arrdef))  # noqa: E501
@@ -85,8 +86,10 @@ class LibertyToJSONParser():
         # REGEX defining lines with no ending colon
         nocommadecl = re.compile(r'(?P<content>{inddef}{vardef}\s*:\s*(\"[^\n\"\(\)]+\"|[^\n\s\"\(\),]+))\s*$'.format(inddef=inddef, vardef=vardef))  # noqa: E501
 
-        # remove empty lines and trailing whitespaces
-        libfile = [line.rstrip() for line in libfile if line.strip()]
+        # REGEX defining typical variable name, which is any variable starting
+        # with alphabetic character, followed by [A-Za-z_0-9] characters, and
+        # not within quotes
+        unwrappeddecl = re.compile(r'{inddef}\"?(?P<varname>{vardef})\"?\s*:\s*\"?(?P<varvalue>[^\n\"{{]*)\"?\s*,$'.format(inddef=inddef, vardef=vardef))  # noqa: E501
 
         # join all lines into single string
         fullfile = '\n'.join(libfile)
@@ -101,12 +104,21 @@ class LibertyToJSONParser():
         # remove line breaks
         fullfile = re.sub(r'\\[\s\n\r\t]*', '', fullfile, flags=re.DOTALL)
 
+        # replace all tabs with single space
+        fullfile = fullfile.replace('\t', ' ')
+
+        # move non-whitespace content after } to new line
+        fullfile = re.sub(r'}\s*(?!\n)', '}\n', fullfile, flags=re.DOTALL)
+
         # split single string into lines
         libfile = fullfile.split('\n')
         fullfile = ''
 
         # replace semicolons with commas
         libfile = [line.replace(';', ',') for line in libfile]
+
+        # remove empty lines and trailing whitespaces
+        libfile = [line.rstrip() for line in libfile if line.strip()]
 
         # FIXME: removed date entry here to ease parsing, maybe this should be
         # removed
@@ -123,23 +135,6 @@ class LibertyToJSONParser():
                     r'"\g<attribute_name>", "group_name": "\g<group_name>", '
                     r'"attribute_type": "\g<attribute_type>"}',
                     libfile[i])
-
-            # parse attribute entries
-            libfile[i] = attdecl.sub(
-                    r'\g<indent>"\g<attrname>" : "\g<attrval>",',
-                    libfile[i])
-
-            # remove parenthesis from struct names
-            structmatch = structdecl.match(libfile[i])
-            if structmatch:
-                if structmatch.group("name"):
-                    libfile[i] = structdecl.sub(
-                            r'\g<indent>"\g<type> \g<name>" :',
-                            libfile[i])
-                else:
-                    libfile[i] = structdecl.sub(
-                            r'\g<indent>"\g<type>" :',
-                            libfile[i])
 
             # parse array entries to make them JSON-compliant
             arrmatch = arrdecl.match(libfile[i])
@@ -159,18 +154,54 @@ class LibertyToJSONParser():
                     else:
                         arrays += ', [{}]'.format(match.group('arrvalues'))
 
-                libfile[i] = '{indent}{arrname} : [{arrays}]'.format(
+                libfile[i] = '{indent}{arrname} : [{arrays}],'.format(
                         indent=arrmatch.group('indent'),
                         arrname=arrmatch.group('arrname'),
                         arrays=arrays)
 
             # convert array-like attributes to arrays
+            # log_printer.log('INFO', libfile[i])
             libfile[i] = singlearr.sub(
                     r'\g<indent>"\g<arrname>" : [\g<arrvalues>],',
                     libfile[i])
 
+            # parse attribute entries
+            attmatch = attdecl.match(libfile[i])
+            if attmatch:
+                libfile[i] = '{}"{}" : "{}",'.format(
+                        attmatch.group("indent"),
+                        attmatch.group("attrname"),
+                        attmatch.group("attrval").replace('"',"'"))
+
+            # remove parenthesis from struct names
+            structmatch = structdecl.match(libfile[i])
+            if structmatch:
+                if structmatch.group("name"):
+                    libfile[i] = '{}"{} {}" : {}'.format(
+                            structmatch.group("indent"),
+                            structmatch.group("type"),
+                            structmatch.group("name").replace('"',"'"),
+                            '{' if libfile[i].rstrip().endswith('{') else '')
+                else:
+                    libfile[i] = structdecl.sub(
+                            r'\g<indent>"\g<type>" :',
+                            libfile[i])
+
             # wrap all text in quotes
-            libfile[i] = vardecl.sub(r'"\g<variable>"', libfile[i])
+            unwrappedmatch = unwrappeddecl.match(libfile[i])
+            if unwrappedmatch:
+                singlearrdef = r'\[?\s*(\[\s*(?P<arrvalues>({numdef}(,\s*)?)+)\s*\])+\s*\]?'.format(numdef=numdef)  # noqa: E501
+                isarray = re.match(singlearrdef, unwrappedmatch.group('varvalue'))
+                if isarray:
+                    libfile[i] = '{}"{}" : {},'.format(
+                            unwrappedmatch.group('indent'),
+                            unwrappedmatch.group('varname'),
+                            unwrappedmatch.group('varvalue').strip())
+                else:
+                    libfile[i] = '{}"{}" : "{}",'.format(
+                            unwrappedmatch.group('indent'),
+                            unwrappedmatch.group('varname'),
+                            unwrappedmatch.group('varvalue').strip())
 
             # add colons after closing braces
             libfile[i] = libfile[i].replace("}", "},")
