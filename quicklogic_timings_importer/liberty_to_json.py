@@ -168,7 +168,7 @@ class LibertyToJSONParser():
             # parse attribute entries
             attmatch = attdecl.match(libfile[i])
             if attmatch:
-                libfile[i] = '{}"{}" : "{}",'.format(
+                libfile[i] = '{}"comp_attribute {}" : "{}",'.format(
                         attmatch.group("indent"),
                         attmatch.group("attrname"),
                         attmatch.group("attrval").replace('"',"'"))
