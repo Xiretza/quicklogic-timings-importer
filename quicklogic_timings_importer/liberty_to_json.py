@@ -184,7 +184,7 @@ class LibertyToJSONParser():
                             '{' if libfile[i].rstrip().endswith('{') else '')
                 else:
                     libfile[i] = structdecl.sub(
-                            r'\g<indent>"\g<type>" :',
+                            r'\g<indent>"\g<type> " :',
                             libfile[i])
 
             # wrap all text in quotes
