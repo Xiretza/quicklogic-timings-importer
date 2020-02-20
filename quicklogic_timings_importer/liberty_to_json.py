@@ -191,7 +191,9 @@ class LibertyToJSONParser():
             unwrappedmatch = unwrappeddecl.match(libfile[i])
             if unwrappedmatch:
                 singlearrdef = r'\[?\s*(\[\s*(?P<arrvalues>({numdef}(,\s*)?)+)\s*\])+\s*\]?'.format(numdef=numdef)  # noqa: E501
-                isarray = re.match(singlearrdef, unwrappedmatch.group('varvalue'))
+                isarray = re.match(
+                        singlearrdef,
+                        unwrappedmatch.group('varvalue'))
                 if isarray:
                     libfile[i] = '{}"{}" : {},'.format(
                             unwrappedmatch.group('indent'),
