@@ -283,11 +283,11 @@ class JSONToSDFParser():
         for objectname, obj in librarycontent.items():
             direction = obj['direction']
             # for all timing configurations in the cell
-            if 'timing' in obj:
+            if 'timing ' in obj:
                 elementnametotiming = defaultdict(lambda: [])
-                for timing in (obj['timing']
-                               if type(obj['timing']) is list
-                               else [obj['timing']]):
+                for timing in (obj['timing ']
+                               if type(obj['timing ']) is list
+                               else [obj['timing ']]):
                     cellname = instancename
                     if 'when' in timing:
                         # normally, the sdf_cond field should contain the name
