@@ -37,7 +37,7 @@ class LibertyToJSONParser():
         return d
 
     @classmethod
-    def load_timing_info_from_lib(cls, libfile: list) -> (str, dict):
+    def load_timing_info_from_lib(cls, libfile: list) -> (dict):
         '''Reads the LIB file and converts it to dictionary structure.
 
         Parameters
@@ -67,7 +67,7 @@ class LibertyToJSONParser():
 
         # REGEX defining the dictionary name in LIB file, i.e. "pin ( QAI )",
         # "pin(FBIO[22])" or "timing()"
-        structdecl = re.compile(r'{inddef}(?P<type>{vardef})\s*\(\s*\"?(?P<name>[^\n{{]+)?\"?\s*\)'.format(vardef=vardef, inddef=inddef, alloweddef=alloweddef))  # noqa: E501
+        structdecl = re.compile(r'{inddef}(?P<type>{vardef})\s*\(\s*\"?(?P<name>[^\n{{]+?)?\"?\s*\)'.format(vardef=vardef, inddef=inddef, alloweddef=alloweddef))  # noqa: E501
 
         # REGEX defining global "attribute (entry);" statements
         attdecl = re.compile(r'{inddef}(?P<attrname>{vardef})\s*\(\s*\"?(?P<attrval>[^\n\(\)]+?)\"?\s*\)\s*,$'.format(vardef=vardef, inddef=inddef))  # noqa: E501
@@ -90,6 +90,7 @@ class LibertyToJSONParser():
         # with alphabetic character, followed by [A-Za-z_0-9] characters, and
         # not within quotes
         unwrappeddecl = re.compile(r'{inddef}\"?(?P<varname>{vardef})\"?\s*:\s*\"?(?P<varvalue>[^\n\"{{]*)\"?\s*,$'.format(inddef=inddef, vardef=vardef))  # noqa: E501
+        # vardecl = re.compile(r'(?P<variable>(?<!\"){vardef}(\[[0-9]+\])?(?![^\:]*\"))'.format(vardef=vardef))  # noqa: E501
 
         # join all lines into single string
         fullfile = '\n'.join(libfile)
@@ -171,7 +172,7 @@ class LibertyToJSONParser():
                 libfile[i] = '{}"comp_attribute {}" : "{}",'.format(
                         attmatch.group("indent"),
                         attmatch.group("attrname"),
-                        attmatch.group("attrval").replace('"',"'"))
+                        attmatch.group("attrval").replace('"', "'"))
 
             # remove parenthesis from struct names
             structmatch = structdecl.match(libfile[i])
@@ -180,7 +181,7 @@ class LibertyToJSONParser():
                     libfile[i] = '{}"{} {}" : {}'.format(
                             structmatch.group("indent"),
                             structmatch.group("type"),
-                            structmatch.group("name").replace('"',"'"),
+                            structmatch.group("name").replace('"', "'"),
                             '{' if libfile[i].rstrip().endswith('{') else '')
                 else:
                     libfile[i] = structdecl.sub(
@@ -219,6 +220,9 @@ class LibertyToJSONParser():
 
         # remove the colon in the end of file
         libfile[-1] = re.sub(r',\s*', '', libfile[-1])
+
+        with open('out.dbg', 'w') as dbg:
+            dbg.write('\n'.join(libfile))
 
         timingdict = json.loads('\n'.join(libfile),
                                 object_pairs_hook=cls.join_duplicate_keys)
