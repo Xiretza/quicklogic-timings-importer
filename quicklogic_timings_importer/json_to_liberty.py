@@ -64,8 +64,9 @@ class JSONToLibertyWriter():
                     for value in rootvalue:
                         entrylines = cls.parse_entry(rootkey, value)
                         lines.extend(entrylines)
-                elif (len(rootvaluetypes) == 1
-                        and rootvaluetypes[0] in ['int', 'float']):
+                elif not (False in
+                        set([typ in ['int', 'float']
+                            for typ in rootvaluetypes])):
                     # these are numbers from array
                     values = ', '.join([str(val) for val in rootvalue])
                     cls.update(lines, '{} ("{}");'.format(rootkey, values))
