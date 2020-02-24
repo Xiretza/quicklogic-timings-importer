@@ -67,10 +67,10 @@ class LibertyToJSONParser():
 
         # REGEX defining the dictionary name in LIB file, i.e. "pin ( QAI )",
         # "pin(FBIO[22])" or "timing()"
-        structdecl = re.compile(r'{inddef}(?P<type>{vardef})\s*\(\s*\"?(?P<name>[^\n{{]+?)?\"?\s*\)'.format(vardef=vardef, inddef=inddef, alloweddef=alloweddef))  # noqa: E501
+        structdecl = re.compile(r'{inddef}(?P<type>{vardef})\s*\(\s*(\"(?P<nameq>[^\n{{]+?)?\"|(?P<name>[^\n{{]+?)?)\s*\)'.format(vardef=vardef, inddef=inddef, alloweddef=alloweddef))  # noqa: E501
 
         # REGEX defining global "attribute (entry);" statements
-        attdecl = re.compile(r'{inddef}(?P<attrname>{vardef})\s*\(\s*\"?(?P<attrval>[^\n\(\)]+?)\"?\s*\)\s*,$'.format(vardef=vardef, inddef=inddef))  # noqa: E501
+        attdecl = re.compile(r'{inddef}(?P<attrname>{vardef})\s*\(\s*(\"(?P<attrvalq>[^\n\(\)]+?)\"|(?P<attrval>[^\n\(\)]+?))\s*\)\s*,$'.format(vardef=vardef, inddef=inddef))  # noqa: E501
 
         # REGEX defining array for lu_table_template template breakpoints
         arrdecl = re.compile(r'{inddef}(?P<arrname>{vardef})\s*\((?P<array>{arrdef}+)\)'.format(vardef=vardef, inddef=inddef, arrdef=arrdef))  # noqa: E501
@@ -89,7 +89,7 @@ class LibertyToJSONParser():
         # REGEX defining typical variable name, which is any variable starting
         # with alphabetic character, followed by [A-Za-z_0-9] characters, and
         # not within quotes
-        unwrappeddecl = re.compile(r'{inddef}\"?(?P<varname>{vardef})\"?\s*:\s*\"?(?P<varvalue>[^\n\"{{]*)\"?\s*,$'.format(inddef=inddef, vardef=vardef))  # noqa: E501
+        unwrappeddecl = re.compile(r'{inddef}(\"(?P<varnameq>{vardef})\"|(?P<varname>{vardef}))\s*:\s*(\"(?P<varvalueq>[^\n\"{{]*)\"|(?P<varvalue>[^\n\"{{]*))\s*,$'.format(inddef=inddef, vardef=vardef))  # noqa: E501
         # vardecl = re.compile(r'(?P<variable>(?<!\"){vardef}(\[[0-9]+\])?(?![^\:]*\"))'.format(vardef=vardef))  # noqa: E501
 
         # join all lines into single string
@@ -172,16 +172,20 @@ class LibertyToJSONParser():
                 libfile[i] = '{}"comp_attribute {}" : "{}",'.format(
                         attmatch.group("indent"),
                         attmatch.group("attrname"),
-                        attmatch.group("attrval").replace('"', "'"))
+                        (attmatch.group("attrval")
+                            if attmatch.group("attrval") else
+                            attmatch.group("attrvalq")).replace('"', '\\"'))
 
             # remove parenthesis from struct names
             structmatch = structdecl.match(libfile[i])
             if structmatch:
-                if structmatch.group("name"):
+                if structmatch.group("name") or structmatch.group("nameq"):
                     libfile[i] = '{}"{} {}" : {}'.format(
                             structmatch.group("indent"),
                             structmatch.group("type"),
-                            structmatch.group("name").replace('"', "'"),
+                            (structmatch.group("name") if
+                                structmatch.group("name") else 
+                                structmatch.group("nameq")).replace('"', '\\"'),
                             '{' if libfile[i].rstrip().endswith('{') else '')
                 else:
                     libfile[i] = structdecl.sub(
@@ -192,19 +196,25 @@ class LibertyToJSONParser():
             unwrappedmatch = unwrappeddecl.match(libfile[i])
             if unwrappedmatch:
                 singlearrdef = r'\[?\s*(\[\s*(?P<arrvalues>({numdef}(,\s*)?)+)\s*\])+\s*\]?'.format(numdef=numdef)  # noqa: E501
+                varval = (unwrappedmatch.group('varvalue') 
+                        if unwrappedmatch.group('varvalue')
+                        else unwrappedmatch.group('varvalueq'))
+                varnam = (unwrappedmatch.group('varname')
+                        if unwrappedmatch.group('varname')
+                        else unwrappedmatch.group('varnameq'))
                 isarray = re.match(
                         singlearrdef,
-                        unwrappedmatch.group('varvalue'))
+                        varval)
                 if isarray:
                     libfile[i] = '{}"{}" : {},'.format(
                             unwrappedmatch.group('indent'),
-                            unwrappedmatch.group('varname'),
-                            unwrappedmatch.group('varvalue').strip())
+                            varnam,
+                            varval.strip())
                 else:
                     libfile[i] = '{}"{}" : "{}",'.format(
                             unwrappedmatch.group('indent'),
-                            unwrappedmatch.group('varname'),
-                            unwrappedmatch.group('varvalue').strip())
+                            varnam,
+                            varval.strip())
 
             # add colons after closing braces
             libfile[i] = libfile[i].replace("}", "},")
