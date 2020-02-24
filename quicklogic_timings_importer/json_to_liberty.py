@@ -125,7 +125,8 @@ class JSONToLibertyWriter():
                             'JSON entry not parseable 2')
             else:
                 if ((type(rootvalue) is str)
-                        and not re.match(r'^\d+\.\d+$', rootvalue)):
+                        and not re.match(r'^\d+\.\d+$', rootvalue)
+                        and not rootvalue in ["true", "false"]):
                     cls.update(lines, '{} : "{}";'.format(rootkey, rootvalue))
                 else:
                     cls.update(lines, '{} : {};'.format(rootkey, rootvalue))
