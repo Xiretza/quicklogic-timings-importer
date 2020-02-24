@@ -74,8 +74,11 @@ class JSONToLibertyWriter():
                     # it's a two-dimensional array
                     cls.update(lines, '{} ( \\'.format(rootkey))
                     cls._ind = ' ' * (len(lines[-1]) - 2)
-                    for array in rootvalue:
-                        arr = '"{}", \\'.format(
+                    for index, array in enumerate(rootvalue):
+                        arrstyle = ('"{}", \\' 
+                                if index != (len(rootvalue) - 1)
+                                else '"{}" \\')
+                        arr = arrstyle.format(
                                 ', '.join([str(a) for a in array]))
                         cls.update(lines, arr)
                     cls.updateind(0)
