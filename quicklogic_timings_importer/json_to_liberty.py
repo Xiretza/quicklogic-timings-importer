@@ -65,8 +65,8 @@ class JSONToLibertyWriter():
                         entrylines = cls.parse_entry(rootkey, value)
                         lines.extend(entrylines)
                 elif not (False in
-                        set([typ in ['int', 'float']
-                            for typ in rootvaluetypes])):
+                          set([typ in ['int', 'float']
+                               for typ in rootvaluetypes])):
                     # these are numbers from array
                     values = ', '.join([str(val) for val in rootvalue])
                     cls.update(lines, '{} ("{}");'.format(rootkey, values))
@@ -75,9 +75,9 @@ class JSONToLibertyWriter():
                     cls.update(lines, '{} ( \\'.format(rootkey))
                     cls._ind = ' ' * (len(lines[-1]) - 2)
                     for index, array in enumerate(rootvalue):
-                        arrstyle = ('"{}", \\' 
-                                if index != (len(rootvalue) - 1)
-                                else '"{}" \\')
+                        arrstyle = ('"{}", \\'
+                                    if index != (len(rootvalue) - 1)
+                                    else '"{}" \\')
                         arr = arrstyle.format(
                                 ', '.join([str(a) for a in array]))
                         cls.update(lines, arr)
@@ -126,7 +126,7 @@ class JSONToLibertyWriter():
             else:
                 if ((type(rootvalue) is str)
                         and not re.match(r'^\d+\.\d+$', rootvalue)
-                        and not rootvalue in ["true", "false"]):
+                        and rootvalue not in ["true", "false"]):
                     cls.update(lines, '{} : "{}";'.format(rootkey, rootvalue))
                 else:
                     cls.update(lines, '{} : {};'.format(rootkey, rootvalue))
