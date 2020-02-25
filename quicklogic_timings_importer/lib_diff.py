@@ -2,8 +2,6 @@ import difflib
 import argparse
 from pathlib import Path
 import re
-import sys
-import diff_match_patch
 import log_printer
 
 
