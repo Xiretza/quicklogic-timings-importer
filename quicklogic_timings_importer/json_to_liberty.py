@@ -92,7 +92,7 @@ class JSONToLibertyWriter():
             # we need to process dict entries
 
             if ' ' in rootkey:
-                keysplit = rootkey.split(' ')
+                keysplit = rootkey.split(' ', 1)
                 cls.update(lines, '{} ({}) {{'.format(
                     keysplit[0], keysplit[1]))
                 for key, value in rootvalue.items():
@@ -116,7 +116,7 @@ class JSONToLibertyWriter():
             if ' ' in rootkey:
                 # we should have a complex attribute
                 if 'comp_attribute' in rootkey:
-                    attrname = rootkey.split(' ')[1]
+                    attrname = rootkey.split(' ', 1)[1]
                     cls.update(lines, '{} ({});'.format(attrname, rootvalue))
                 else:
                     # there is some issue
