@@ -8,6 +8,7 @@ from pathlib import Path
 import argparse
 from lib_diff import clean_lines, diff_files
 
+
 def similarity_float(x):
     try:
         x = float(x)
