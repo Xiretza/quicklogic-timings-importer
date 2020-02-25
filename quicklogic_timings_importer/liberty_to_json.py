@@ -181,8 +181,9 @@ class LibertyToJSONParser():
                             structmatch.group("indent"),
                             structmatch.group("type"),
                             (structmatch.group("name") if
-                                structmatch.group("name") else 
-                                structmatch.group("nameq")).replace('"', '\\"'),
+                                structmatch.group("name") else
+                                structmatch.group("nameq")).replace(
+                                    '"', '\\"'),
                             '{' if libfile[i].rstrip().endswith('{') else '')
                 else:
                     libfile[i] = structdecl.sub(
@@ -193,12 +194,12 @@ class LibertyToJSONParser():
             unwrappedmatch = unwrappeddecl.match(libfile[i])
             if unwrappedmatch:
                 singlearrdef = r'\[?\s*(\[\s*(?P<arrvalues>({numdef}(,\s*)?)+)\s*\])+\s*\]?'.format(numdef=numdef)  # noqa: E501
-                varval = (unwrappedmatch.group('varvalue') 
-                        if unwrappedmatch.group('varvalue')
-                        else unwrappedmatch.group('varvalueq'))
+                varval = (unwrappedmatch.group('varvalue')
+                          if unwrappedmatch.group('varvalue')
+                          else unwrappedmatch.group('varvalueq'))
                 varnam = (unwrappedmatch.group('varname')
-                        if unwrappedmatch.group('varname')
-                        else unwrappedmatch.group('varnameq'))
+                          if unwrappedmatch.group('varname')
+                          else unwrappedmatch.group('varnameq'))
                 isarray = re.match(
                         singlearrdef,
                         varval)
