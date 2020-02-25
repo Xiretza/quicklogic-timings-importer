@@ -122,10 +122,6 @@ class LibertyToJSONParser():
         # remove empty lines and trailing whitespaces
         libfile = [line.rstrip() for line in libfile if line.strip()]
 
-        # FIXME: removed date entry here to ease parsing, maybe this should be
-        # removed
-        libfile = [line for line in libfile if 'date :' not in line]
-
         for i in range(len(libfile)):
             # add comma if not present
             # TODO: not sure if this should be accepted or returned as error
