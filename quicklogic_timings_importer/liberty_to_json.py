@@ -31,7 +31,8 @@ class LibertyToJSONParser():
                 if type(d[k]) == list:
                     d[k].append(v)
                 else:
-                    d[k] = [d[k], v]
+                    if d[k] != v:
+                        d[k] = [d[k], v]
             else:
                 d[k] = v
         return d
