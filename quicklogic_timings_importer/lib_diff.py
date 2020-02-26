@@ -28,9 +28,26 @@ def clean_lines(
 
     Parameters
     ----------
+    lines: list
+        list of Liberty lines to clean
+    remove_comments: bool
+        removes comments if True
+    move_entry_to_newline: bool
+        if True and when there is content present after the closing brace, it
+        is moved to newline
+    remove_quotes: bool
+        remove all quotes characters from file if True
+    remove_whitespaces: bool
+        remove all whitespaces if True
+    unify_numbers: bool
+        unifies the number notation if True
+    remove_line_breaks:
+        when the line is broken into multiple lines with backslash, convert it
+        to single line if True
 
     Returns
     -------
+    list: cleaned lines
     '''
     # join all lines into single string
     fullfile = '\n'.join(lines)
@@ -91,6 +108,39 @@ def diff_files(
         html_row_width=100,
         return_similarity=False,
         similarity_method='quick'):
+    '''Compares two cleaned Liberty files and returns desired representations.
+
+    Parameters
+    ----------
+    in1: list
+        List of cleaned lines for first Liberty file
+    in2: list
+        List of cleaned lines for second Liberty file
+    print_diff: bool
+        If True, function will print Differ-like diff to standard output
+    html_path: str
+        If None, does nothing. Otherwise, it generates HTML file containing
+        side-by-side comparison of cleaned Liberty files in the path
+        specified in the parameter
+    html_row_width: int
+        Number of characters within single row of one side of the HTML
+        comparison
+    return_similarity: bool
+        If True, function will return the value from 0 to 1 representing the
+        similarity between files, where 0 means they are completely different,
+        and 1 means they are exactly the same
+    similarity_method: str
+        Method used for computing similarity measure. Values can be:
+        * normal - slow, exact comparison,
+        * quick - faster, less exact comparison that returns upper bound for
+            normal similarity ratio
+        * real_quick - very fast, very inaccurate
+
+    Returns
+    -------
+    float: similarity measure result if `return_similarity` is True,
+        otherwise None
+    '''
     if html_path:
         diff = difflib.HtmlDiff(
                 charjunk=junk_characters,
