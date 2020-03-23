@@ -71,6 +71,24 @@ class JSONToSDFParser():
                     defentrydata["timing_type"] not in cls.ctypes))
 
     @classmethod
+    def is_delval_empty(cls, delval):
+        """Checks if delval is empty.
+
+        Parameters
+        ----------
+        delval: dict
+            A delval value
+
+        Returns
+        -------
+        bool: True if empty, else False
+        """
+        for val in delval.values():
+            if not(val is None or float(val) == 0):
+                return False
+        return True
+
+    @classmethod
     def parseiopath(cls, delval_rise, delval_fall, objectname, entrydata):
         """Parses combinational entries into IOPATH.
 
@@ -92,6 +110,11 @@ class JSONToSDFParser():
         -------
         dict: SDF entry for a given pin
         """
+        paths = {}
+        if not cls.is_delval_empty(delval_rise):
+            paths['fast'] = delval_rise
+        if not cls.is_delval_empty(delval_fall):
+            paths['nominal'] = delval_fall
         element = sdfutils.add_iopath(
                 pfrom={
                     "port": entrydata["related_pin"],
@@ -101,7 +124,7 @@ class JSONToSDFParser():
                     "port": objectname,
                     "port_edge": None,
                     },
-                paths={'fast': delval_rise, 'nominal': delval_fall})
+                paths=paths)
         element["is_absolute"] = True
         return element
 
@@ -154,9 +177,15 @@ class JSONToSDFParser():
                 log("INFO", 'timing type is ignored: {}'.format(timing_type))
                 return None
             if timing_type in ['falling_edge', 'rising_edge']:
-                delays = {"setup": delval_rise, "hold": delval_fall}
+                delays = {}
+                if not cls.is_delval_empty(delval_rise):
+                    delays["setup"] = delval_rise
+                if not cls.is_delval_empty(delval_fall):
+                    delays["hold"] = delval_fall
             else:
-                delays = {"nominal": delval_fall}
+                delays = {
+                    "nominal": (delval_fall if cls.is_delval_empty(delval_rise)
+                                else delval_rise)}
             ptype, edgetype = typestoedges[timing_type]
         else:
             log("ERROR", "combinational entry in sequential timing parser")
@@ -314,6 +343,10 @@ class JSONToSDFParser():
                     # extract intrinsic_rise and intrinsic_fall in SDF-friendly
                     # format
                     rise, fall = cls.extract_delval(timing)
+
+                    # if timings are completely empty, skip the entry
+                    if cls.is_delval_empty(rise) and cls.is_delval_empty(fall):
+                        continue
 
                     # run all defined hooks for given timing entry
                     parserkey = cls.getparsekey(timing, direction)
