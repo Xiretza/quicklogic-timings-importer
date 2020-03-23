@@ -294,8 +294,6 @@ class LibertyToSDFParser():
             'removal_rising': ('removal', 'posedge'),
             'recovery_falling': ('recovery', 'negedge'),
             'recovery_rising': ('recovery', 'posedge'),
-            'skew_falling': ('skew', 'negedge'),
-            'skew_rising': ('skew', 'posedge'),
             'clear': None,
         }
         # combinational types, should not be present in this function
