@@ -304,6 +304,7 @@ class JSONToSDFParser():
 
         # for all pins in the cell
         for objectname, obj in librarycontent.items():
+            objectname = objectname.split(' ', 1)[1]
             direction = obj['direction']
             # for all timing configurations in the cell
             if 'timing ' in obj:
