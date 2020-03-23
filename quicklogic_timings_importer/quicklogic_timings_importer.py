@@ -111,10 +111,8 @@ class JSONToSDFParser():
         dict: SDF entry for a given pin
         """
         paths = {}
-        if not cls.is_delval_empty(delval_rise):
-            paths['fast'] = delval_rise
-        if not cls.is_delval_empty(delval_fall):
-            paths['nominal'] = delval_fall
+        paths['fast'] = delval_rise
+        paths['nominal'] = delval_fall
         element = sdfutils.add_iopath(
                 pfrom={
                     "port": entrydata["related_pin"],
@@ -178,10 +176,8 @@ class JSONToSDFParser():
                 return None
             if timing_type in ['falling_edge', 'rising_edge']:
                 delays = {}
-                if not cls.is_delval_empty(delval_rise):
-                    delays["setup"] = delval_rise
-                if not cls.is_delval_empty(delval_fall):
-                    delays["hold"] = delval_fall
+                delays["setup"] = delval_rise
+                delays["hold"] = delval_fall
             else:
                 delays = {
                     "nominal": (delval_fall if cls.is_delval_empty(delval_rise)
