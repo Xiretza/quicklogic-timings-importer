@@ -213,7 +213,7 @@ class LibertyToSDFParser():
         return timingdict
 
     @classmethod
-    def extract_delval(cls, libentry: dict):
+    def extract_delval(cls, libentry: dict, kfactor: float):
         """Extracts SDF delval entry from Liberty structure format.
 
         Parameters
@@ -231,18 +231,18 @@ class LibertyToSDFParser():
         rise = {'avg': None, 'max': None, 'min': None}
 
         if 'intrinsic_rise_min' in libentry:
-            rise['min'] = libentry['intrinsic_rise_min']
+            rise['min'] = libentry['intrinsic_rise_min'] * kfactor
         if 'intrinsic_rise' in libentry:
-            rise['avg'] = libentry['intrinsic_rise']
+            rise['avg'] = libentry['intrinsic_rise'] * kfactor
         if 'intrinsic_rise_max' in libentry:
-            rise['max'] = libentry['intrinsic_rise_max']
+            rise['max'] = libentry['intrinsic_rise_max'] * kfactor
 
         if 'intrinsic_fall_min' in libentry:
-            fall['min'] = libentry['intrinsic_fall_min']
+            fall['min'] = libentry['intrinsic_fall_min'] * kfactor
         if 'intrinsic_fall' in libentry:
-            fall['avg'] = libentry['intrinsic_fall']
+            fall['avg'] = libentry['intrinsic_fall'] * kfactor
         if 'intrinsic_fall_max' in libentry:
-            fall['max'] = libentry['intrinsic_fall_max']
+            fall['max'] = libentry['intrinsic_fall_max'] * kfactor
 
         return rise, fall
 
@@ -435,6 +435,8 @@ class LibertyToSDFParser():
 
         # For extracting cell instance from the header
         instance_re = re.compile(r".*instance\s+(?P<instance>[a-zA-Z0-9_]+)\s*")
+        # For extracting kfactor
+        kfactor_re = re.compile(r".*kfactor\s+(?P<kfactor>[0-9\.]+)\s*")
 
         # Determine the design name
         design_names = set()
@@ -469,8 +471,20 @@ class LibertyToSDFParser():
             else:
                 instance_name = cell_name
 
+            match = kfactor_re.match(header)
+            if match is not None:
+                kfactor = float(match.group("kfactor"))
+            else:
+                kfactor = 1.0
+
             # Process cell data
-            cls.export_sdf_cell(cells, timing_dict, cell_name, instance_name)
+            cls.export_sdf_cell(
+                cells,
+                timing_dict,
+                cell_name,
+                instance_name,
+                kfactor
+            )
 
 
         # generate SDF file from dictionaries
@@ -485,7 +499,7 @@ class LibertyToSDFParser():
 
 
     @classmethod
-    def export_sdf_cell(cls, cells, lib_dict, cell_name, instance_name):
+    def export_sdf_cell(cls, cells, lib_dict, cell_name, instance_name, kfactor):
         """
         Converts parsed cell data to SDF writer structs.
         """
@@ -538,7 +552,7 @@ class LibertyToSDFParser():
 
                     # extract intrinsic_rise and intrinsic_fall in SDF-friendly
                     # format
-                    rise, fall = cls.extract_delval(timing)
+                    rise, fall = cls.extract_delval(timing, kfactor)
 
                     # run all defined hooks for given timing entry
                     parserkey = cls.getparsekey(timing, direction)
