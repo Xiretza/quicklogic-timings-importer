@@ -184,9 +184,6 @@ class LibertyToSDFParser():
         # remove the colon in the end of file
         libfile[-1] = re.sub(r',\s*', '', libfile[-1])
 
-        with open("dbg.json", "w") as f:
-            f.write('\n'.join(libfile))
-
         timingdict = json.loads('\n'.join(libfile),
                                 object_pairs_hook=cls.join_duplicate_keys)
 
