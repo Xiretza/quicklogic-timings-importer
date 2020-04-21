@@ -7,6 +7,7 @@ import log_printer
 from pathlib import Path
 import argparse
 from lib_diff import clean_lines, diff_files
+import sys
 
 
 def similarity_float(x):
@@ -184,12 +185,18 @@ def main():
             if args.print_lib_diff:
                 diff_files(in1, in2, print_diff=True)
 
+    isfailed = False
     for key in numfailed.keys():
+        if numfailed[key] > 0:
+            isfailed = True
         print('{}: {} out of {} failed ({}% succeded, {} were skipped)'.format(
             key,
             numfailed[key],
             numfiles,
             100.0 * (numfiles - numfailed[key]) / numfiles, numskipped[key]))
+
+    if isfailed:
+        sys.exit(1)
 
 
 if __name__ == '__main__':
