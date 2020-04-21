@@ -97,7 +97,11 @@ class LibertyToJSONParser():
         fullfile = '\n'.join(libfile)
 
         # remove comments (C/C++ style)
-        fullfile = re.sub(r'(?:\/\*(.*?)\*\/)|(?:\/\/(.*?))', '',
+        
+        fullfile = re.sub(r'(?:\/\*(.*?)\*\/)', '',
+                          fullfile, flags=re.DOTALL)
+        
+        fullfile = re.sub(r'(?:\/\/(.*?)\n)', '\n',
                           fullfile, flags=re.DOTALL)
 
         # remove comments (Python style)
