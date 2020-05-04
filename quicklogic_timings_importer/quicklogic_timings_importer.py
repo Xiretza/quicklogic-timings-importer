@@ -16,10 +16,10 @@ class JSONToSDFParser():
     ctypes = ['combinational', 'three_state_disable', 'three_state_enable']
 
     # extracts cell name and design name, ignore kfactor value
-    headerparser = re.compile(r'^\"?(?P<cell>[a-zA-Z_][a-zA-Z_0-9]*)\"?\s*cell\s*(?P<design>[a-zA-Z_][a-zA-Z_0-9]*).*')  # noqa: E501
+    headerparser = re.compile(r'^\"?(?P<cell>[a-zA-Z_][a-zA-Z_0-9]*)\"?\s*cell\s*(?P<design>[a-zA-Z_][a-zA-Z_0-9]*)\s*kfactor\s*(?P<kfactor>[0-9.]*).*')  # noqa: E501
 
     @classmethod
-    def extract_delval(cls, libentry: dict):
+    def extract_delval(cls, libentry: dict, kfactor: float):
         """Extracts SDF delval entry from Liberty structure format.
 
         Parameters
@@ -37,18 +37,18 @@ class JSONToSDFParser():
         rise = {'avg': None, 'max': None, 'min': None}
 
         if 'intrinsic_rise_min' in libentry:
-            rise['min'] = libentry['intrinsic_rise_min'] * kfactor
+            rise['min'] = float(libentry['intrinsic_rise_min']) * kfactor
         if 'intrinsic_rise' in libentry:
-            rise['avg'] = libentry['intrinsic_rise'] * kfactor
+            rise['avg'] = float(libentry['intrinsic_rise']) * kfactor
         if 'intrinsic_rise_max' in libentry:
-            rise['max'] = libentry['intrinsic_rise_max'] * kfactor
+            rise['max'] = float(libentry['intrinsic_rise_max']) * kfactor
 
         if 'intrinsic_fall_min' in libentry:
-            fall['min'] = libentry['intrinsic_fall_min'] * kfactor
+            fall['min'] = float(libentry['intrinsic_fall_min']) * kfactor
         if 'intrinsic_fall' in libentry:
-            fall['avg'] = libentry['intrinsic_fall'] * kfactor
+            fall['avg'] = float(libentry['intrinsic_fall']) * kfactor
         if 'intrinsic_fall_max' in libentry:
-            fall['max'] = libentry['intrinsic_fall_max'] * kfactor
+            fall['max'] = float(libentry['intrinsic_fall_max']) * kfactor
 
         return rise, fall
 
@@ -247,47 +247,60 @@ class JSONToSDFParser():
 
 
     @classmethod
-    def export_sdf_from_lib(cls, voltage, parsed_lib):
-        """
-        Converts a list of cell instance definition to a SDF file.
+    def export_sdf_from_lib_dict(
+            cls,
+            header: str,
+            voltage: float,
+            lib_dict: dict):
+        '''Converts the dictionary containing parsed timing information from
+        LIB file to the SDF format.
 
         Parameters
         ----------
+        header: str
+            A header for given LIB file
         voltage: float
-            Voltage
-        parser_lib: list(str, dict)
-            A list of tuples with cell instance definition headers and parsed
-            timing data.
+            A voltage for which timings apply
+        lib_dict: dict
+            A dictionary containing parsed LIB file
+        '''
 
-        Returns
-        -------
-        str: A string with the SDF file content.
-        """
+        # setup hooks that run different parsing functions based on current
+        # entry
+        parserhooks = {}
 
-        # For extracting cell instance from the header
-        instance_re = re.compile(r".*instance\s+(?P<instance>[a-zA-Z0-9_]+)\s*")
-        # For extracting kfactor
-        kfactor_re = re.compile(r".*kfactor\s+(?P<kfactor>[0-9\.]+)\s*")
+        parserhooks[("input", True)] = [cls.parsesetuphold]
+        parserhooks[("input", False)] = [cls.parseiopath]
+        parserhooks[("inout", True)] = [cls.parsesetuphold]
+        parserhooks[("inout", False)] = [cls.parseiopath]
+        parserhooks[("output", True)] = [cls.parsesetuphold]
+        parserhooks[("output", False)] = [cls.parseiopath]
 
-        # Determine the design name
-        design_names = set()
-        for header, _ in parsed_lib:
-            parsedheader = cls.headerparser.match(header)
-            design_names.add(parsedheader.group("design"))
+        # extracts cell name and design name, ignore kfactor value
+        # headerparser = re.compile(r'^\"?(?P<cell>[a-zA-Z_][a-zA-Z_0-9]*)\"?\s*cell\s*(?P<design>[a-zA-Z_][a-zA-Z_0-9]*).*')  # noqa: E501
+        headerparser = re.compile(r'^\"?(?P<cell>[a-zA-Z_][a-zA-Z_0-9]*)\"?\s*cell\s*(?P<design>[a-zA-Z_][a-zA-Z_0-9]*)\s*kfactor\s*(?P<kfactor>[0-9.]*).*')  # noqa: E501
 
-        design_name = "_".join(design_names)
+        # extracts pin name and value
+        whenparser = re.compile("(?P<name>[a-zA-Z_][a-zA-Z_0-9]*(\[[0-9]*\])?)\s*==\s*1'b(?P<value>[0-1])(\s*&&)?")  # noqa: E501
+
+        # parse header
+        parsedheader = headerparser.match(header)
+
+        kfactor = float(parsedheader.group('kfactor'))
 
         # initialize Yacc dictionaries holding data
         sdfparse.init()
 
         sdfparse.sdfyacc.header = {
                 'date': date.today().strftime("%B %d, %Y"),
-                'design': design_name,
+                'design': parsedheader.group('design'),
                 'sdfversion': '3.0',
                 'voltage': {'avg': voltage, 'max': voltage, 'min': voltage},
                 }
 
-        # Process each cell instance
+        # name of the cell
+        instancename = parsedheader.group('cell')
+
         cells = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
 
         keys = [key for key in lib_dict.keys()]
@@ -346,16 +359,26 @@ class JSONToSDFParser():
                         if element is not None:
                             # Merge duplicated entries
                             elname = element["name"]
-                            if elname in cells[cellname][instance_name]:
+                            if elname in cells[cellname][instancename]:
                                 element = cls.merge_delays(
-                                        cells[cellname][instance_name][elname],
+                                        cells[cellname][instancename][elname],
                                         element)
 
                             # memorize the timing entry responsible for given
                             # SDF entry
                             elementnametotiming[elname].append(timing)
                             # add SDF entry
-                            cells[cellname][instance_name][elname] = element
+                            cells[cellname][instancename][elname] = element
+
+        # generate SDF file from dictionaries
+        sdfparse.sdfyacc.cells = cells
+        sdfparse.sdfyacc.timings = {
+                "cells": sdfparse.sdfyacc.cells,
+                "header": sdfparse.sdfyacc.header}
+
+        sdffile = sdfwrite.emit_sdf(sdfparse.sdfyacc.timings)
+
+        return sdffile
 
 
 def main():
@@ -401,6 +424,8 @@ def main():
 
     # extract file header
     header = libfile.pop(0)
+    print("HEADER", header)
+    sys.exit(1)
 
     # remove PORT DELAY root name
     libfile[0] = r'library \({}\) {}'.format(
@@ -442,7 +467,7 @@ def main():
     result = JSONToSDFParser.export_sdf_from_lib_dict(
             header,
             args.voltage,
-            parsed_lib)
+            timingdict)
 
     with open(args.output, 'w') as out:
         out.write(result)
