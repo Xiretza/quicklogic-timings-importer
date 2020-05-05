@@ -233,9 +233,6 @@ class LibertyToJSONParser():
         # remove the colon in the end of file
         libfile[-1] = re.sub(r',\s*', '', libfile[-1])
 
-        with open('out.dbg', 'w') as dbg:
-            dbg.write('\n'.join(libfile))
-
         timingdict = json.loads('\n'.join(libfile),
                                 object_pairs_hook=cls.join_duplicate_keys)
 
