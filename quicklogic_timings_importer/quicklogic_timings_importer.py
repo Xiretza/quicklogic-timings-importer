@@ -425,7 +425,6 @@ def main():
     # extract file header
     header = libfile.pop(0)
     print("HEADER", header)
-    sys.exit(1)
 
     # remove PORT DELAY root name
     libfile[0] = r'library \({}\) {}'.format(
