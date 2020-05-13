@@ -118,11 +118,11 @@ class JSONToSDFParser():
         paths['nominal'] = delval_fall
         element = sdfutils.add_iopath(
                 pfrom={
-                    "port": entrydata["related_pin"],
+                    "port": cls.normalize_name(entrydata["related_pin"]),
                     "port_edge": None,
                     },
                 pto={
-                    "port": objectname,
+                    "port": cls.normalize_name(objectname),
                     "port_edge": None,
                     },
                 paths=paths)
@@ -245,6 +245,11 @@ class JSONToSDFParser():
         element["delay_paths"] = delays
         return element
 
+    @classmethod
+    def normalize_name(cls, name):
+        # remove array markers
+        newname = name.replace('[','').replace(']','')
+        return newname
 
     @classmethod
     def export_sdf_from_lib_dict(
@@ -391,6 +396,9 @@ class JSONToSDFParser():
                                     # SDF entry
                                     elementnametotiming[elname].append(timing)
                                     # add SDF entry
+                                    cname = cls.normalize_name(cname)
+                                    instancename = cls.normalize_name(instancename)
+                                    elname = cls.normalize_name(elname)
                                     cells[cname][instancename][elname] = element
 
         # generate SDF file from dictionaries
