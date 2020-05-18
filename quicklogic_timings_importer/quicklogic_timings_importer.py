@@ -6,9 +6,9 @@ import re
 import json
 from datetime import date
 from collections import defaultdict
-from liberty_to_json import LibertyToJSONParser
-import log_printer
-from log_printer import log
+from .liberty_to_json import LibertyToJSONParser
+from . import log_printer
+from .log_printer import log
 
 
 class JSONToSDFParser():

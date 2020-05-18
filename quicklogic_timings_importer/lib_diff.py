@@ -2,7 +2,7 @@ import difflib
 import argparse
 from pathlib import Path
 import re
-import log_printer
+from . import log_printer
 
 
 def junk_characters(a):
