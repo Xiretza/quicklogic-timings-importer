@@ -13,7 +13,7 @@ from .log_printer import log
 
 class JSONToSDFParser():
 
-    ctypes = ['combinational', 'three_state_disable', 'three_state_enable']
+    ctypes = ['combinational', 'three_state_disable', 'three_state_enable', 'rising_edge', 'falling_edge', 'clear']
 
     # extracts cell name and design name, ignore kfactor value
     headerparser = re.compile(r'^\"?(?P<cell>[a-zA-Z_][a-zA-Z_0-9]*)\"?\s*cell\s*(?P<design>[a-zA-Z_][a-zA-Z_0-9]*)\s*(?:kfactor\s*(?P<kfactor>[0-9.]*))?\s*(?:instance\s*(?P<instance>[a-zA-Z_0-9]*))?.*')  # noqa: E501
@@ -65,7 +65,7 @@ class JSONToSDFParser():
 
         Returns
         -------
-        tuple: key for parser hook
+        tuple: key for parser hook (direction, is_sequential)
         """
         defentrydata = defaultdict(lambda: None, entrydata)
         return (
@@ -154,8 +154,6 @@ class JSONToSDFParser():
         """
 
         typestoedges = {
-            'falling_edge': ('setuphold', 'negedge'),
-            'rising_edge': ('setuphold', 'posedge'),
             'hold_falling': ('hold', 'negedge'),
             'hold_rising': ('hold', 'posedge'),
             'setup_falling': ('setup', 'negedge'),
@@ -164,7 +162,6 @@ class JSONToSDFParser():
             'removal_rising': ('removal', 'posedge'),
             'recovery_falling': ('recovery', 'negedge'),
             'recovery_rising': ('recovery', 'posedge'),
-            'clear': None,
         }
         # combinational types, should not be present in this function
         if ('timing_type' in entrydata and
@@ -177,10 +174,6 @@ class JSONToSDFParser():
             if typestoedges[timing_type] is None:
                 log("INFO", 'timing type is ignored: {}'.format(timing_type))
                 return None
-            if timing_type in ['falling_edge', 'rising_edge']:
-                delays = {}
-                delays["setup"] = delval_rise
-                delays["hold"] = delval_fall
             else:
                 delays = {
                     "nominal": (delval_fall if cls.is_delval_empty(delval_rise)
@@ -193,11 +186,11 @@ class JSONToSDFParser():
         element = sdfutils.add_tcheck(
                 type=ptype,
                 pto={
-                    "port": objectname,
+                    "port": cls.normalize_name(objectname),
                     "port_edge": None,
                     },
                 pfrom={
-                    "port": entrydata["related_pin"],
+                    "port": cls.normalize_name(entrydata["related_pin"]),
                     "port_edge": edgetype,
                     "cond": None,
                     "cond_equation": None,
@@ -277,7 +270,6 @@ class JSONToSDFParser():
         parserhooks[("input", False)] = [cls.parseiopath]
         parserhooks[("inout", True)] = [cls.parsesetuphold]
         parserhooks[("inout", False)] = [cls.parseiopath]
-        parserhooks[("output", True)] = [cls.parsesetuphold]
         parserhooks[("output", False)] = [cls.parseiopath]
 
         # extracts cell name and design name, ignore kfactor value
