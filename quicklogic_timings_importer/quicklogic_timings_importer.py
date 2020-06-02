@@ -265,7 +265,8 @@ class JSONToSDFParser():
             voltage: float,
             parsed_data : list,
             normalize_cell_names : bool,
-            normalize_port_names : bool):
+            normalize_port_names : bool,
+            sdf_timescale : str = "1ns"):
         '''Converts the dictionary containing parsed timing information from
         LIB file to the SDF format.
 
@@ -314,7 +315,7 @@ class JSONToSDFParser():
                 'date': date.today().strftime("%B %d, %Y"),
                 'design': design,
                 'sdfversion': '3.0',
-                'voltage': {'avg': voltage, 'max': voltage, 'min': voltage},
+                'voltage': {'avg': voltage, 'max': voltage, 'min': voltage}
                 }
 
         cells = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
@@ -426,7 +427,7 @@ class JSONToSDFParser():
                 "cells": sdfparse.sdfyacc.cells,
                 "header": sdfparse.sdfyacc.header}
 
-        sdffile = sdfwrite.emit_sdf(sdfparse.sdfyacc.timings)
+        sdffile = sdfwrite.emit_sdf(sdfparse.sdfyacc.timings, timescale=sdf_timescale)
 
         return sdffile
 
@@ -454,6 +455,11 @@ def main():
             "--voltage",
             help="The voltage for a given timing",
             type=float)
+    parser.add_argument(
+            "--timescale",
+            help="Timescale string (def. \"1ns\") NOT A MULTIPLIER",
+            default="1ns",
+            type=str)
     parser.add_argument(
             "--normalize-cell-names",
             action="store_true",
@@ -518,7 +524,8 @@ def main():
             args.voltage,
             parsed_data,
             args.normalize_cell_names,
-            args.normalize_port_names
+            args.normalize_port_names,
+            args.timescale,
             )
 
     #FIXME: reenable sanity check
