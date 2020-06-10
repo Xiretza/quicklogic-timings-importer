@@ -3,7 +3,7 @@
 import argparse
 from pathlib import Path
 import json
-import log_printer
+from . import log_printer
 import pprint
 import re
 

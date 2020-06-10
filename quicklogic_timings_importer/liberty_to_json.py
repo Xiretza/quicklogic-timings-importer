@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 import json
 import re
-import log_printer
+from . import log_printer
 
 
 class LibertyToJSONParser():

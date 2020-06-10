@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
-from liberty_to_json import LibertyToJSONParser
-from json_to_liberty import JSONToLibertyWriter
+from .liberty_to_json import LibertyToJSONParser
+from .json_to_liberty import JSONToLibertyWriter
 import json
-import log_printer
+from . import log_printer
 from pathlib import Path
 import argparse
-from lib_diff import clean_lines, diff_files
+from .lib_diff import clean_lines, diff_files
 import sys
 
 

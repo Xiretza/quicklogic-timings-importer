@@ -6,17 +6,20 @@ import re
 import json
 from datetime import date
 from collections import defaultdict
-from liberty_to_json import LibertyToJSONParser
-import log_printer
-from log_printer import log
+from .liberty_to_json import LibertyToJSONParser
+from . import log_printer
+from .log_printer import log
 
 
 class JSONToSDFParser():
 
-    ctypes = ['combinational', 'three_state_disable', 'three_state_enable']
+    ctypes = ['combinational', 'three_state_disable', 'three_state_enable', 'rising_edge', 'falling_edge', 'clear']
 
     # extracts cell name and design name, ignore kfactor value
     headerparser = re.compile(r'^\"?(?P<cell>[a-zA-Z_][a-zA-Z_0-9]*)\"?\s*cell\s*(?P<design>[a-zA-Z_][a-zA-Z_0-9]*)\s*(?:kfactor\s*(?P<kfactor>[0-9.]*))?\s*(?:instance\s*(?P<instance>[a-zA-Z_0-9]*))?.*')  # noqa: E501
+
+    normalize_cell_names = True
+    normalize_port_names = True
 
     @classmethod
     def extract_delval(cls, libentry: dict, kfactor: float):
@@ -65,7 +68,7 @@ class JSONToSDFParser():
 
         Returns
         -------
-        tuple: key for parser hook
+        tuple: key for parser hook (direction, is_sequential)
         """
         defentrydata = defaultdict(lambda: None, entrydata)
         return (
@@ -113,16 +116,22 @@ class JSONToSDFParser():
         -------
         dict: SDF entry for a given pin
         """
+
+        if cls.normalize_port_names:
+            normalize = cls.normalize_name
+        else:
+            normalize = lambda x: x
+
         paths = {}
         paths['fast'] = delval_rise
         paths['nominal'] = delval_fall
         element = sdfutils.add_iopath(
                 pfrom={
-                    "port": cls.normalize_name(entrydata["related_pin"]),
+                    "port": normalize(entrydata["related_pin"]),
                     "port_edge": None,
                     },
                 pto={
-                    "port": cls.normalize_name(objectname),
+                    "port": normalize(objectname),
                     "port_edge": None,
                     },
                 paths=paths)
@@ -154,8 +163,6 @@ class JSONToSDFParser():
         """
 
         typestoedges = {
-            'falling_edge': ('setuphold', 'negedge'),
-            'rising_edge': ('setuphold', 'posedge'),
             'hold_falling': ('hold', 'negedge'),
             'hold_rising': ('hold', 'posedge'),
             'setup_falling': ('setup', 'negedge'),
@@ -164,8 +171,13 @@ class JSONToSDFParser():
             'removal_rising': ('removal', 'posedge'),
             'recovery_falling': ('recovery', 'negedge'),
             'recovery_rising': ('recovery', 'posedge'),
-            'clear': None,
         }
+
+        if cls.normalize_port_names:
+            normalize = cls.normalize_name
+        else:
+            normalize = lambda x: x
+
         # combinational types, should not be present in this function
         if ('timing_type' in entrydata and
                 entrydata['timing_type'] not in cls.ctypes):
@@ -177,10 +189,6 @@ class JSONToSDFParser():
             if typestoedges[timing_type] is None:
                 log("INFO", 'timing type is ignored: {}'.format(timing_type))
                 return None
-            if timing_type in ['falling_edge', 'rising_edge']:
-                delays = {}
-                delays["setup"] = delval_rise
-                delays["hold"] = delval_fall
             else:
                 delays = {
                     "nominal": (delval_fall if cls.is_delval_empty(delval_rise)
@@ -193,11 +201,11 @@ class JSONToSDFParser():
         element = sdfutils.add_tcheck(
                 type=ptype,
                 pto={
-                    "port": objectname,
+                    "port": normalize(objectname),
                     "port_edge": None,
                     },
                 pfrom={
-                    "port": entrydata["related_pin"],
+                    "port": normalize(entrydata["related_pin"]),
                     "port_edge": edgetype,
                     "cond": None,
                     "cond_equation": None,
@@ -255,7 +263,10 @@ class JSONToSDFParser():
     def export_sdf_from_lib_dict(
             cls,
             voltage: float,
-            parsed_data : list):
+            parsed_data : list,
+            normalize_cell_names : bool,
+            normalize_port_names : bool,
+            sdf_timescale : str = "1ns"):
         '''Converts the dictionary containing parsed timing information from
         LIB file to the SDF format.
 
@@ -267,6 +278,10 @@ class JSONToSDFParser():
             A voltage for which timings apply
         lib_dict: dict
             A dictionary containing parsed LIB file
+        normalize_cell_names
+            When True enables normalization of cell and cell instance names
+        normalize_cell_names
+            When True enables normalization of port names
         '''
 
         # setup hooks that run different parsing functions based on current
@@ -277,8 +292,10 @@ class JSONToSDFParser():
         parserhooks[("input", False)] = [cls.parseiopath]
         parserhooks[("inout", True)] = [cls.parsesetuphold]
         parserhooks[("inout", False)] = [cls.parseiopath]
-        parserhooks[("output", True)] = [cls.parsesetuphold]
         parserhooks[("output", False)] = [cls.parseiopath]
+
+        cls.normalize_cell_names = normalize_cell_names
+        cls.normalize_port_names = normalize_port_names
 
         # extracts cell name and design name, ignore kfactor value
         headerparser = cls.headerparser
@@ -298,7 +315,7 @@ class JSONToSDFParser():
                 'date': date.today().strftime("%B %d, %Y"),
                 'design': design,
                 'sdfversion': '3.0',
-                'voltage': {'avg': voltage, 'max': voltage, 'min': voltage},
+                'voltage': {'avg': voltage, 'max': voltage, 'min': voltage}
                 }
 
         cells = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
@@ -336,7 +353,6 @@ class JSONToSDFParser():
             # initialize Yacc dictionaries holding data
             sdfparse.init()
 
-
             for instancename, cellname, librarycontent in zip(instancenames, cellnames, librarycontents):
                 # for all pins in the cell
                 for objectname, obj in librarycontent.items():
@@ -372,6 +388,11 @@ class JSONToSDFParser():
                                     cname += "_{}_EQ_1".format(
                                             timing['timing_type'].upper())
 
+                            # Normalize cell and instance names
+                            if cls.normalize_cell_names:
+                                cname = cls.normalize_name(cname)
+                                instancename = cls.normalize_name(instancename)
+
                             # extract intrinsic_rise and intrinsic_fall in SDF-friendly
                             # format
                             rise, fall = cls.extract_delval(timing, kfactor)
@@ -396,9 +417,8 @@ class JSONToSDFParser():
                                     # SDF entry
                                     elementnametotiming[elname].append(timing)
                                     # add SDF entry
-                                    cname = cls.normalize_name(cname)
-                                    instancename = cls.normalize_name(instancename)
-                                    elname = cls.normalize_name(elname)
+                                    if cls.normalize_cell_names:
+                                        elname = cls.normalize_name(elname)                                    
                                     cells[cname][instancename][elname] = element
 
         # generate SDF file from dictionaries
@@ -407,7 +427,7 @@ class JSONToSDFParser():
                 "cells": sdfparse.sdfyacc.cells,
                 "header": sdfparse.sdfyacc.header}
 
-        sdffile = sdfwrite.emit_sdf(sdfparse.sdfyacc.timings)
+        sdffile = sdfwrite.emit_sdf(sdfparse.sdfyacc.timings, timescale=sdf_timescale)
 
         return sdffile
 
@@ -435,6 +455,19 @@ def main():
             "--voltage",
             help="The voltage for a given timing",
             type=float)
+    parser.add_argument(
+            "--timescale",
+            help="Timescale string (def. \"1ns\") NOT A MULTIPLIER",
+            default="1ns",
+            type=str)
+    parser.add_argument(
+            "--normalize-cell-names",
+            action="store_true",
+            help="Don't normalize cell and instance names (remove brackets)")
+    parser.add_argument(
+            "--normalize-port-names",
+            action="store_true",
+            help="Don't normalize port names (remove brackets)")
     parser.add_argument(
             "--log-suppress-below",
             help="The mininal not suppressed log level",
@@ -489,7 +522,11 @@ def main():
 
     result += JSONToSDFParser.export_sdf_from_lib_dict(
             args.voltage,
-            parsed_data)
+            parsed_data,
+            args.normalize_cell_names,
+            args.normalize_port_names,
+            args.timescale,
+            )
 
     #FIXME: reenable sanity check
 	# ----------------------------------------------
