@@ -90,7 +90,7 @@ class JSONToSDFParser():
         bool: True if empty, else False
         """
         for val in delval.values():
-            if not(val is None or float(val) == 0):
+            if not(val is None):
                 return False
         return True
 
@@ -418,7 +418,7 @@ class JSONToSDFParser():
                                     elementnametotiming[elname].append(timing)
                                     # add SDF entry
                                     if cls.normalize_cell_names:
-                                        elname = cls.normalize_name(elname)                                    
+                                        elname = cls.normalize_name(elname)
                                     cells[cname][instancename][elname] = element
 
         # generate SDF file from dictionaries
