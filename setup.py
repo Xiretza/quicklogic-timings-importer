@@ -11,6 +11,10 @@ setuptools.setup(
     long_description_content_type="text/x-rst",
     author="Antmicro Ltd.",
     author_email="contact@antmicro.com",
+    install_requires=[
+        "sdf_timing",
+        "termcolor",
+    ],
     entry_points={
         'console_scripts': ['quicklogic_timings_importer=quicklogic_timings_importer.quicklogic_timings_importer:main']  # noqa: E501
     },
